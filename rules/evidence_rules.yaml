@@ -1,0 +1,174 @@
+# rules/evidence_rules.yaml
+
+rules:
+  - rule_id: EV-SYSMON-001
+    title: PowerShell Process Execution
+    source: Sysmon
+    event_id: 1
+    conditions:
+      image_contains:
+        - "powershell.exe"
+        - "pwsh.exe"
+    evidence_type: Process Execution
+    attack_stage: Execution
+    severity: Medium
+    mitre_tactic: Execution
+    mitre_technique: T1059.001
+    forensic_meaning: "PowerShell process execution was observed. Review command line, parent process, and script block logs."
+
+  - rule_id: EV-SYSMON-002
+    title: Command Shell Execution
+    source: Sysmon
+    event_id: 1
+    conditions:
+      image_contains:
+        - "cmd.exe"
+    evidence_type: Process Execution
+    attack_stage: Execution
+    severity: Low
+    mitre_tactic: Execution
+    mitre_technique: T1059.003
+    forensic_meaning: "Windows command shell execution was observed."
+
+  - rule_id: EV-SYSMON-003
+    title: System Discovery Command
+    source: Sysmon
+    event_id: 1
+    conditions:
+      command_contains:
+        - "whoami"
+        - "hostname"
+        - "ipconfig"
+        - "net user"
+        - "net localgroup"
+        - "tasklist"
+    evidence_type: Discovery Command
+    attack_stage: Discovery
+    severity: Medium
+    mitre_tactic: Discovery
+    mitre_technique: T1087/T1082/T1057
+    forensic_meaning: "System, account, or process discovery command was observed."
+
+  - rule_id: EV-SYSMON-004
+    title: File Created in Temp Directory
+    source: Sysmon
+    event_id: 11
+    conditions:
+      target_filename_contains:
+        - "\\Temp\\"
+        - "\\AppData\\Local\\Temp\\"
+    evidence_type: File Activity
+    attack_stage: Collection/Staging
+    severity: Low
+    mitre_tactic: Collection
+    mitre_technique: T1074
+    forensic_meaning: "A file was created in a temporary directory. This may indicate staging or dropped artifact activity."
+
+  - rule_id: EV-SYSMON-005
+    title: External Network Connection
+    source: Sysmon
+    event_id: 3
+    conditions:
+      destination_ip_exists: true
+    evidence_type: Network Connection
+    attack_stage: Network Activity
+    severity: Medium
+    mitre_tactic: Command and Control
+    mitre_technique: T1071
+    forensic_meaning: "A network connection was observed. Review destination IP, port, and owning process."
+
+  - rule_id: EV-SYSMON-006
+    title: DNS Query Observed
+    source: Sysmon
+    event_id: 22
+    conditions:
+      query_name_exists: true
+    evidence_type: DNS Query
+    attack_stage: Network Activity
+    severity: Low
+    mitre_tactic: Command and Control
+    mitre_technique: T1071.004
+    forensic_meaning: "DNS query was observed. Review queried domain and related process."
+
+  - rule_id: EV-PS-001
+    title: PowerShell Script Block Logged
+    source: PowerShell
+    event_id: 4104
+    conditions:
+      script_block_exists: true
+    evidence_type: Script Execution
+    attack_stage: Execution
+    severity: Medium
+    mitre_tactic: Execution
+    mitre_technique: T1059.001
+    forensic_meaning: "PowerShell script block content was logged. Review script contents for suspicious behavior."
+
+  - rule_id: EV-PS-002
+    title: PowerShell Web Request
+    source: PowerShell
+    event_id: 4104
+    conditions:
+      command_contains:
+        - "Invoke-WebRequest"
+        - "iwr "
+        - "curl "
+        - "wget "
+    evidence_type: Network Command
+    attack_stage: Network Activity
+    severity: Medium
+    mitre_tactic: Command and Control
+    mitre_technique: T1105
+    forensic_meaning: "PowerShell web request command was observed. This may indicate download or external communication."
+
+  - rule_id: EV-PS-003
+    title: PowerShell Archive Creation
+    source: PowerShell
+    event_id: 4104
+    conditions:
+      command_contains:
+        - "Compress-Archive"
+    evidence_type: Archive Activity
+    attack_stage: Collection/Staging
+    severity: Medium
+    mitre_tactic: Collection
+    mitre_technique: T1560
+    forensic_meaning: "Archive creation command was observed. This may indicate staging of collected data."
+
+  - rule_id: EV-SEC-001
+    title: Security Process Creation
+    source: Security
+    event_id: 4688
+    conditions:
+      image_exists: true
+    evidence_type: Process Execution
+    attack_stage: Execution
+    severity: Low
+    mitre_tactic: Execution
+    mitre_technique: T1059
+    forensic_meaning: "Windows Security process creation event was observed."
+
+  - rule_id: EV-SEC-002
+    title: Successful Logon
+    source: Security
+    event_id: 4624
+    conditions:
+      always: true
+    evidence_type: Logon
+    attack_stage: Initial Context
+    severity: Informational
+    mitre_tactic: Credential Access
+    mitre_technique: "-"
+    forensic_meaning: "Successful logon event was observed. Use this to identify active user session context."
+
+  - rule_id: EV-SEC-003
+    title: Security Log Cleared
+    source: Security
+    event_id: 1102
+    conditions:
+      always: true
+    evidence_type: Log Clearing
+    attack_stage: Defense Evasion
+    severity: High
+    mitre_tactic: Defense Evasion
+    mitre_technique: T1070.001
+    forensic_meaning: "Security event log was cleared. This is a high-value forensic indicator."
