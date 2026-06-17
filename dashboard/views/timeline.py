@@ -3,6 +3,7 @@
 import streamlit as st
 
 from .common import load_timeline_df, show_missing_file_warning
+from components import render_badge_table
 
 
 def render_timeline():
@@ -55,17 +56,29 @@ def render_timeline():
         "source",
         "event_id",
         "evidence_id",
-        "ioc_refs",
-        "mitre_tactic",
-        "mitre_technique",
     ]
 
     display_columns = [c for c in columns if c in filtered.columns]
 
-    st.dataframe(
-        filtered[display_columns],
-        use_container_width=True,
-        hide_index=True,
+    rows = filtered[display_columns].to_dict("records")
+    render_badge_table(
+        rows=rows,
+        columns=display_columns,
+        badge_columns={"severity"},
+        right_columns={"order", "event_id"},
+        column_widths={
+            "order": "55px",
+            "timestamp": "170px",
+            "stage": "150px",
+            "severity": "95px",
+            "action": "260px",
+            "source": "90px",
+            "event_id": "80px",
+            "evidence_id": "105px",
+            "ioc_refs": "260px",
+            "mitre_tactic": "150px",
+            "mitre_technique": "140px",
+        },
     )
 
     st.divider()

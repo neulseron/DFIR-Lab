@@ -2,7 +2,7 @@
 
 rules:
   - rule_id: EV-SYSMON-001
-    title: PowerShell Process Execution
+    title: PowerShell 프로세스 실행
     source: Sysmon
     event_id: 1
     conditions:
@@ -17,7 +17,7 @@ rules:
     forensic_meaning: "PowerShell process execution was observed. Review command line, parent process, and script block logs."
 
   - rule_id: EV-SYSMON-002
-    title: Command Shell Execution
+    title: 명령 프롬프트 실행
     source: Sysmon
     event_id: 1
     conditions:
@@ -31,7 +31,7 @@ rules:
     forensic_meaning: "Windows command shell execution was observed."
 
   - rule_id: EV-SYSMON-003
-    title: System Discovery Command
+    title: 시스템 정보 수집 명령 실행
     source: Sysmon
     event_id: 1
     conditions:
@@ -50,7 +50,7 @@ rules:
     forensic_meaning: "System, account, or process discovery command was observed."
 
   - rule_id: EV-SYSMON-004
-    title: File Created in Temp Directory
+    title: 임시 디렉터리 내 파일 생성
     source: Sysmon
     event_id: 11
     conditions:
@@ -65,7 +65,7 @@ rules:
     forensic_meaning: "A file was created in a temporary directory. This may indicate staging or dropped artifact activity."
 
   - rule_id: EV-SYSMON-005
-    title: External Network Connection
+    title: 네트워크 연결 발생
     source: Sysmon
     event_id: 3
     conditions:
@@ -78,7 +78,7 @@ rules:
     forensic_meaning: "A network connection was observed. Review destination IP, port, and owning process."
 
   - rule_id: EV-SYSMON-006
-    title: DNS Query Observed
+    title: DNS 질의 발생
     source: Sysmon
     event_id: 22
     conditions:
@@ -91,7 +91,7 @@ rules:
     forensic_meaning: "DNS query was observed. Review queried domain and related process."
 
   - rule_id: EV-PS-001
-    title: PowerShell Script Block Logged
+    title: PowerShell 스크립트 블록 로그 기록
     source: PowerShell
     event_id: 4104
     conditions:
@@ -104,7 +104,7 @@ rules:
     forensic_meaning: "PowerShell script block content was logged. Review script contents for suspicious behavior."
 
   - rule_id: EV-PS-002
-    title: PowerShell Web Request
+    title: PowerShell 웹 요청 명령 실행
     source: PowerShell
     event_id: 4104
     conditions:
@@ -121,7 +121,7 @@ rules:
     forensic_meaning: "PowerShell web request command was observed. This may indicate download or external communication."
 
   - rule_id: EV-PS-003
-    title: PowerShell Archive Creation
+    title: PowerShell 압축 파일 생성 명령 실행
     source: PowerShell
     event_id: 4104
     conditions:
@@ -135,7 +135,7 @@ rules:
     forensic_meaning: "Archive creation command was observed. This may indicate staging of collected data."
 
   - rule_id: EV-SEC-001
-    title: Security Process Creation
+    title: Windows Security 프로세스 생성 이벤트
     source: Security
     event_id: 4688
     conditions:
@@ -148,7 +148,7 @@ rules:
     forensic_meaning: "Windows Security process creation event was observed."
 
   - rule_id: EV-SEC-002
-    title: Successful Logon
+    title: 로그인 성공 이벤트
     source: Security
     event_id: 4624
     conditions:
@@ -161,7 +161,7 @@ rules:
     forensic_meaning: "Successful logon event was observed. Use this to identify active user session context."
 
   - rule_id: EV-SEC-003
-    title: Security Log Cleared
+    title: 보안 로그 삭제 이벤트
     source: Security
     event_id: 1102
     conditions:

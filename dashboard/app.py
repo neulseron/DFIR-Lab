@@ -2,8 +2,6 @@
 
 import streamlit as st
 
-import streamlit as st
-
 from components import render_sidebar
 
 from views.home import render_home

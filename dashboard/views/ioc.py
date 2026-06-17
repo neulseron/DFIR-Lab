@@ -4,6 +4,82 @@ import pandas as pd
 import streamlit as st
 
 from .common import get_processed_dir, load_json, show_missing_file_warning
+from components import render_badge_table, ioc_type_label
+
+
+# --------------------------------------------------
+# 요약 표시
+# --------------------------------------------------
+
+IOC_TYPE_LABELS = {
+    "command": "⌨️ 명령어",
+    "domain": "🌐 도메인",
+    "file_path": "📄 파일 경로",
+    "hash": "#️⃣ 해시",
+    "ip": "🖥️ IP",
+    "process": "⚙️ 프로세스",
+    "url": "🔗 URL",
+    "user": "👤 사용자",
+}
+
+SEVERITY_LABELS = {
+    "High": "HIGH",
+    "Medium": "MEDIUM",
+    "Low": "LOW",
+    "Informational": "INFO",
+}
+
+def render_summary_list(title: str, data: dict, label_map: dict = None):
+    label_map = label_map or {}
+
+    st.markdown(f"**{title}**")
+
+    if not data:
+        st.caption("데이터 없음")
+        return
+
+    # count 기준 내림차순 정렬
+    sorted_items = sorted(
+        data.items(),
+        key=lambda x: x[1],
+        reverse=True,
+    )
+
+    for key, count in sorted_items:
+        label = label_map.get(key, key)
+
+        st.markdown(
+            f"""
+            <div style="
+                display:flex;
+                justify-content:space-between;
+                align-items:center;
+                padding:6px 10px;
+                margin-bottom:5px;
+                border:1px solid #e5e7eb;
+                border-radius:8px;
+                background-color:#f9fafb;
+            ">
+                <span style="font-weight:600; color:#374151;">{label}</span>
+                <span style="
+                    font-weight:700;
+                    color:#111827;
+                    background-color:#ffffff;
+                    border:1px solid #e5e7eb;
+                    border-radius:999px;
+                    padding:2px 8px;
+                    min-width:32px;
+                    text-align:center;
+                ">{count}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+# --------------------------------------------------
+# IOC 렌더링
+# --------------------------------------------------
 
 
 def render_ioc():
@@ -22,10 +98,18 @@ def render_ioc():
     col1, col2, col3 = st.columns(3)
 
     col1.metric("Total IOC", summary.get("total", 0))
-    col2.write("**By Type**")
-    col2.json(summary.get("by_type", {}))
-    col3.write("**By Severity**")
-    col3.json(summary.get("by_severity", {}))
+    with col2:
+        render_summary_list(
+            title="By Type",
+            data=summary.get("by_type", {}),
+            label_map=IOC_TYPE_LABELS,
+        )
+    with col3:
+        render_summary_list(
+            title="By Severity",
+            data=summary.get("by_severity", {}),
+            label_map=SEVERITY_LABELS,
+        )
 
     st.divider()
 
@@ -59,18 +143,31 @@ def render_ioc():
         "type",
         "value",
         "severity",
+        "count",
         "first_seen",
         "last_seen",
-        "count",
-        "related_evidence_ids",
     ]
 
     display_columns = [c for c in display_columns if c in filtered.columns]
 
-    st.dataframe(
-        filtered[display_columns],
-        use_container_width=True,
-        hide_index=True,
+    rows = filtered[display_columns].to_dict("records")
+    render_badge_table(
+        rows=rows,
+        columns=display_columns,
+        badge_columns={"severity"},
+        right_columns={"count"},
+        column_renderers={
+            "type": ioc_type_label,
+        },
+        column_widths={
+            "type": "95px",
+            "value": "360px",
+            "severity": "95px",
+            "first_seen": "170px",
+            "last_seen": "170px",
+            "count": "70px",
+            "related_evidence_ids": "260px",
+        },
     )
 
     st.divider()

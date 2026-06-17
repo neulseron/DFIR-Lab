@@ -3,6 +3,7 @@
 import streamlit as st
 
 from .common import load_evidence_df, show_missing_file_warning
+from components import render_badge_table, evidence_type_label
 
 
 def render_evidence():
@@ -48,22 +49,36 @@ def render_evidence():
 
     display_columns = [
         "evidence_id",
-        "timestamp",
-        "source",
-        "event_id",
         "title",
         "evidence_type",
+        "source",
+        "event_id",
+        "timestamp",
         "attack_stage",
         "severity",
-        "summary",
     ]
 
     display_columns = [c for c in display_columns if c in filtered.columns]
 
-    st.dataframe(
-        filtered[display_columns],
-        use_container_width=True,
-        hide_index=True,
+    rows = filtered[display_columns].to_dict("records")
+    render_badge_table(
+        rows=rows,
+        columns=display_columns,
+        badge_columns={"severity"},
+        column_renderers={
+            "evidence_type": evidence_type_label,
+        },
+        column_widths={
+            "evidence_id": "105px",
+            "title": "220px",
+            "evidence_type": "150px",
+            "source": "90px",
+            "event_id": "80px",
+            "timestamp": "170px",
+            "attack_stage": "150px",
+            "severity": "95px",
+            "summary": "360px",
+        },
     )
 
     st.divider()
