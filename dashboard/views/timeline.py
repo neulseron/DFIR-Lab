@@ -126,3 +126,21 @@ def render_timeline():
             st.markdown("#### Raw Timeline Context")
             with st.expander("Raw Context"):
                 st.json(detail_row.get("raw", {}))
+
+            
+            hayabusa_match_path = get_processed_dir() / "hayabusa" / "hayabusa_timeline_matches.json"
+            hayabusa_matches_data = load_json(hayabusa_match_path, default={})
+
+            st.markdown("#### Hayabusa Same-Time Findings")
+
+            matched_items = []
+
+            for item in hayabusa_matches_data.get("matches", []):
+                if item.get("evidence_id") == selected:
+                    matched_items = item.get("matches", [])
+                    break
+
+            if matched_items:
+                st.dataframe(matched_items, use_container_width=True)
+            else:
+                st.caption("선택한 Timeline row와 근접한 Hayabusa 탐지 결과가 없습니다.")

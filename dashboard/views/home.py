@@ -7,15 +7,111 @@ import sys
 
 import streamlit as st
 from pathlib import Path
+import pandas as pd
 
 from components import render_badge_table, stage_label, spacer, dashed_divider, soft_divider
 from .common import (
     get_case_id,
     get_raw_dir,
     get_processed_dir,
+    get_raw_hayabusa_csv_path,
+    get_hayabusa_dir,
+    get_hayabusa_findings_path,
+    get_hayabusa_summary_path,
+    get_hayabusa_timeline_matches_path,
+    get_hayabusa_coverage_path,
     load_json,
     show_missing_file_warning,
 )
+
+
+# --------------------------------------------------
+# hayabusa
+# --------------------------------------------------
+
+def run_hayabusa_pipeline(project_root: Path, raw_dir: Path, processed_dir: Path, logs: list[str]):
+    """
+    data/raw/<CASE-ID>/hayabusa/hayabusa.csv가 있으면
+    Hayabusa import → timeline correlation → coverage 계산을 수행한다.
+    """
+
+    raw_hayabusa_csv = raw_dir / "hayabusa" / "hayabusa.csv"
+
+    if not raw_hayabusa_csv.exists():
+        logs.append("\n===== hayabusa =====")
+        logs.append(f"[SKIP] Hayabusa CSV not found: {raw_hayabusa_csv}")
+        return
+
+    hayabusa_dir = processed_dir / "hayabusa"
+    hayabusa_dir.mkdir(parents=True, exist_ok=True)
+
+    findings_path = hayabusa_dir / "hayabusa_findings.json"
+    summary_path = hayabusa_dir / "hayabusa_summary.json"
+    correlation_path = hayabusa_dir / "hayabusa_timeline_matches.json"
+    coverage_path = hayabusa_dir / "hayabusa_coverage.json"
+
+    timeline_path = processed_dir / "timeline.json"
+
+    importer_script = project_root / "analysis" / "hayabusa_importer.py"
+    correlator_script = project_root / "analysis" / "hayabusa_correlator.py"
+    coverage_script = project_root / "analysis" / "hayabusa_coverage.py"
+
+    commands = [
+        [
+            sys.executable,
+            str(importer_script),
+            "--csv", str(raw_hayabusa_csv),
+            "--out-findings", str(findings_path),
+            "--out-summary", str(summary_path),
+        ],
+    ]
+
+    if timeline_path.exists():
+        commands.append(
+            [
+                sys.executable,
+                str(correlator_script),
+                "--timeline", str(timeline_path),
+                "--hayabusa", str(findings_path),
+                "--out", str(correlation_path),
+                "--window-seconds", "60",
+            ]
+        )
+
+        commands.append(
+            [
+                sys.executable,
+                str(coverage_script),
+                "--correlation", str(correlation_path),
+                "--hayabusa", str(findings_path),
+                "--out", str(coverage_path),
+            ]
+        )
+
+    for cmd in commands:
+        result = subprocess.run(
+            cmd,
+            cwd=str(project_root),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+        script_name = Path(cmd[1]).name
+
+        logs.append(f"\n===== {script_name} =====")
+
+        if result.stdout:
+            logs.append(result.stdout)
+
+        if result.stderr:
+            logs.append(result.stderr)
+
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"{script_name} 실행 실패\n\n" + "\n".join(logs)
+            )
 
 
 # --------------------------------------------------
@@ -236,6 +332,13 @@ def regenerate_analysis_files(case_id: str, data_root: str):
             raise RuntimeError(
                 f"{script_name} 실행 실패\n\n" + "\n".join(logs)
             )
+        
+    run_hayabusa_pipeline(
+        project_root=project_root,
+        raw_dir=raw_dir,
+        processed_dir=processed_dir,
+        logs=logs,
+    )
 
     return "\n".join(logs)
 
@@ -331,6 +434,8 @@ def render_home():
     timeline = load_json(processed_dir / "timeline.json", default={})
     iocs = load_json(processed_dir / "iocs.json", default={})
     evidence = load_json(processed_dir / "evidence.json", default=[])
+    hayabusa_summary = load_json(get_hayabusa_summary_path(), default={})
+    hayabusa_findings = load_json(get_hayabusa_findings_path(), default={})
 
     if not timeline:
         show_missing_file_warning("timeline.json")
@@ -452,6 +557,172 @@ def render_home():
 
     spacer()
     dashed_divider()
+
+    st.subheader("Hayabusa Summary")
+
+    hy_col1, hy_col2, hy_col3, hy_col4 = st.columns(4)
+
+    with hy_col1:
+        render_metric_card("Hayabusa Findings", hayabusa_summary.get("total", 0), icon="🦅")
+
+    with hy_col2:
+        render_metric_card("First Detection", hayabusa_summary.get("first_seen", "-"), icon="⏱️")
+
+    with hy_col3:
+        render_metric_card("Last Detection", hayabusa_summary.get("last_seen", "-"), icon="⏱️")
+
+    with hy_col4:
+        high_like = (
+            hayabusa_summary.get("by_level", {}).get("Critical", 0)
+            + hayabusa_summary.get("by_level", {}).get("High", 0)
+        )
+        render_metric_card("High+ Alerts", high_like, icon="🚨")
+
+    spacer(50)
+
+
+    findings = hayabusa_findings.get("findings", [])
+
+    if findings:
+        st.markdown("#### Hayabusa Findings")
+
+        display_rows = []
+
+        for item in findings[:300]:
+            display_rows.append({
+                "hayabusa_id": item.get("hayabusa_id"),
+                "timestamp": item.get("timestamp"),
+                "level": item.get("level"),
+                "rule_title": item.get("rule_title"),
+                "channel": item.get("channel"),
+                "event_id": item.get("event_id"),
+                "computer": item.get("computer"),
+            })
+
+        render_badge_table(
+            rows=display_rows,
+            columns=[
+                "hayabusa_id",
+                "timestamp",
+                "level",
+                "rule_title",
+                "channel",
+                "event_id",
+                "computer",
+            ],
+            badge_columns={"level"},
+            right_columns={"event_id"},
+            column_widths={
+                "hayabusa_id": "105px",
+                "timestamp": "180px",
+                "level": "95px",
+                "rule_title": "360px",
+                "channel": "150px",
+                "event_id": "80px",
+                "computer": "150px",
+            },
+        )
+
+
+    coverage_path = get_processed_dir() / "hayabusa" / "hayabusa_coverage.json"
+    coverage = load_json(coverage_path, default={})
+
+    if coverage:
+        st.subheader("Hayabusa Coverage Comparison")
+
+        coverage_summary = coverage.get("summary", {})
+
+        c1, c2, c3, c4, c5 = st.columns(5)
+
+        with c1:
+            render_metric_card("Both", coverage_summary.get("both", 0), icon="🔗")
+
+        with c2:
+            render_metric_card("Internal Only", coverage_summary.get("internal_only", 0), icon="🧩")
+
+        with c3:
+            render_metric_card("Hayabusa Only", coverage_summary.get("hayabusa_only", 0), icon="🦅")
+
+        with c4:
+            render_metric_card("Internal Total", coverage_summary.get("internal_total", 0), icon="📁")
+
+        with c5:
+            render_metric_card("Hayabusa Total", coverage_summary.get("hayabusa_total", 0), icon="📊")
+
+        with st.expander("Both - 자체 룰과 Hayabusa 모두 탐지"):
+            render_badge_table(
+                rows=coverage.get("both", [])[:100],
+                columns=[
+                    "evidence_id",
+                    "timestamp",
+                    "severity",
+                    "stage",
+                    "action",
+                    "hayabusa_match_count",
+                    "hayabusa_rules",
+                ],
+                badge_columns={"severity"},
+                right_columns={"hayabusa_match_count"},
+                column_widths={
+                    "evidence_id": "105px",
+                    "timestamp": "180px",
+                    "severity": "95px",
+                    "stage": "150px",
+                    "action": "320px",
+                    "hayabusa_match_count": "90px",
+                    "hayabusa_rules": "360px",
+                },
+            )
+
+        with st.expander("Internal Only - 자체 룰만 탐지"):
+            render_badge_table(
+                rows=coverage.get("internal_only", [])[:100],
+                columns=[
+                    "evidence_id",
+                    "timestamp",
+                    "severity",
+                    "stage",
+                    "action",
+                ],
+                badge_columns={"severity"},
+                column_widths={
+                    "evidence_id": "105px",
+                    "timestamp": "180px",
+                    "severity": "95px",
+                    "stage": "150px",
+                    "action": "420px",
+                },
+            )
+
+        with st.expander("Hayabusa Only - Hayabusa만 탐지"):
+            render_badge_table(
+                rows=coverage.get("hayabusa_only", [])[:100],
+                columns=[
+                    "hayabusa_id",
+                    "timestamp",
+                    "level",
+                    "rule_title",
+                    "channel",
+                    "event_id",
+                ],
+                badge_columns={"level"},
+                right_columns={"event_id"},
+                column_widths={
+                    "hayabusa_id": "105px",
+                    "timestamp": "180px",
+                    "level": "95px",
+                    "rule_title": "380px",
+                    "channel": "150px",
+                    "event_id": "80px",
+                },
+            )
+
+
+
+    spacer()
+    dashed_divider()
+
+
 
     st.subheader("Case 정보")
 

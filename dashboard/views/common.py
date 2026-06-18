@@ -78,3 +78,35 @@ def show_missing_file_warning(filename: str):
         f"`{filename}` 파일을 찾을 수 없습니다. "
         "analysis 파이프라인을 먼저 실행했는지 확인하세요."
     )
+
+
+# --------------------------------------------------
+# Hayabusa
+# --------------------------------------------------
+
+def get_raw_hayabusa_dir() -> Path:
+    return get_raw_dir() / "hayabusa"
+
+
+def get_raw_hayabusa_csv_path() -> Path:
+    return get_raw_hayabusa_dir() / "hayabusa.csv"
+
+
+def get_hayabusa_dir() -> Path:
+    return get_processed_dir() / "hayabusa"
+
+
+def get_hayabusa_findings_path() -> Path:
+    return get_hayabusa_dir() / "hayabusa_findings.json"
+
+
+def get_hayabusa_summary_path() -> Path:
+    return get_hayabusa_dir() / "hayabusa_summary.json"
+
+
+def get_hayabusa_timeline_matches_path() -> Path:
+    return get_hayabusa_dir() / "hayabusa_timeline_matches.json"
+
+
+def get_hayabusa_coverage_path() -> Path:
+    return get_hayabusa_dir() / "hayabusa_coverage.json"
