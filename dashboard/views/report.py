@@ -6,7 +6,7 @@ from .common import get_processed_dir, load_markdown, show_missing_file_warning
 
 
 def render_report():
-    st.title("Report")
+    st.title("📄 DFIR Analysis Report")
 
     path = get_processed_dir() / "report.md"
     content = load_markdown(path)

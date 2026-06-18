@@ -2,12 +2,18 @@
 
 import streamlit as st
 
-from .common import load_evidence_df, show_missing_file_warning
 from components import render_badge_table, evidence_type_label
+from .common import (
+    get_processed_dir,
+    load_evidence_df,
+    load_timeline_df,
+    load_json,
+    show_missing_file_warning,
+)
 
 
 def render_evidence():
-    st.title("Evidence")
+    st.title("🔍 Evidence")
 
     df = load_evidence_df()
 
@@ -107,6 +113,53 @@ def render_evidence():
         match_details = row.get("match_details", [])
         if isinstance(match_details, list) and match_details:
             st.dataframe(match_details, use_container_width=True)
+
+        selected_evidence_id = row.get("evidence_id")
+
+        st.markdown("#### Related IOC")
+
+        iocs_data = load_json(get_processed_dir() / "iocs.json", default={})
+        related_iocs = []
+
+        for ioc in iocs_data.get("iocs", []):
+            if selected_evidence_id in ioc.get("related_evidence_ids", []):
+                related_iocs.append({
+                    "type": ioc.get("type"),
+                    "value": ioc.get("value"),
+                    "severity": ioc.get("severity"),
+                    "count": ioc.get("count"),
+                    "first_seen": ioc.get("first_seen"),
+                    "last_seen": ioc.get("last_seen"),
+                })
+
+        if related_iocs:
+            st.dataframe(related_iocs, use_container_width=True)
+        else:
+            st.caption("이 Evidence와 연결된 IOC가 없습니다.")
+
+        st.markdown("#### Related Timeline")
+
+        timeline_df = load_timeline_df()
+
+        if not timeline_df.empty and "evidence_id" in timeline_df.columns:
+            related_timeline = timeline_df[timeline_df["evidence_id"] == selected_evidence_id]
+
+            if not related_timeline.empty:
+                st.dataframe(
+                    related_timeline[
+                        [c for c in [
+                            "order",
+                            "timestamp",
+                            "stage",
+                            "severity",
+                            "action",
+                            "ioc_refs",
+                        ] if c in related_timeline.columns]
+                    ],
+                    use_container_width=True,
+                )
+            else:
+                st.caption("이 Evidence와 연결된 Timeline row가 없습니다.")
 
         with st.expander("Raw Evidence Fields"):
             st.json(row)

@@ -2,12 +2,17 @@
 
 import streamlit as st
 
-from .common import load_timeline_df, show_missing_file_warning
-from components import render_badge_table
+from components import render_badge_table, stage_label
+from .common import (
+    get_processed_dir,
+    load_timeline_df,
+    load_json,
+    show_missing_file_warning,
+)
 
 
 def render_timeline():
-    st.title("Timeline")
+    st.title("⏱️ Timeline")
 
     df = load_timeline_df()
 
@@ -66,6 +71,9 @@ def render_timeline():
         columns=display_columns,
         badge_columns={"severity"},
         right_columns={"order", "event_id"},
+        column_renderers={
+            "stage": stage_label,
+        },
         column_widths={
             "order": "55px",
             "timestamp": "170px",
@@ -93,4 +101,28 @@ def render_timeline():
 
         row = filtered[filtered["evidence_id"] == selected].iloc[0].to_dict()
 
+        st.markdown("#### Timeline Row")
         st.json(row)
+
+        timeline_json = load_json(get_processed_dir() / "timeline.json", default={})
+        timeline_rows = timeline_json.get("timeline", [])
+
+        detail_row = None
+        for item in timeline_rows:
+            if item.get("evidence_id") == selected:
+                detail_row = item
+                break
+
+        if detail_row:
+            st.markdown("#### Related IOC Details")
+
+            ioc_details = detail_row.get("ioc_details", [])
+
+            if ioc_details:
+                st.dataframe(ioc_details, use_container_width=True)
+            else:
+                st.caption("이 Timeline row와 연결된 IOC가 없습니다.")
+
+            st.markdown("#### Raw Timeline Context")
+            with st.expander("Raw Context"):
+                st.json(detail_row.get("raw", {}))

@@ -224,10 +224,11 @@ def build_report(
 
     report = []
 
-    report.append(f"# DFIR Analysis Report - {case_id}\n")
+    report.append(f"# << {case_id} >>\n")
     report.append(f"- Generated At: {generated_at}\n")
     report.append("- Report Type: Windows Endpoint DFIR Simulation\n")
 
+    report.append("\n\n\n")
     report.append(section_header("1. Executive Summary"))
     report.append(
         "본 보고서는 Windows 10 엔드포인트에서 안전하게 재현한 의심 행위 시나리오를 대상으로, "
@@ -239,6 +240,7 @@ def build_report(
         "Network Activity, Staging 행위를 안전하게 시뮬레이션한 실습 결과이다.\n"
     )
 
+    report.append("\n\n\n")
     report.append(section_header("2. Case Information"))
     report.append(table(
         ["Field", "Value"],
@@ -254,6 +256,7 @@ def build_report(
         ],
     ))
 
+    report.append("\n\n\n")
     report.append(section_header("3. Evidence Collection Scope"))
     exported_logs = metadata.get("exported_logs", [])
     if exported_logs:
@@ -272,6 +275,7 @@ def build_report(
         "CSV 파일은 분석 편의를 위한 파싱 결과이며, 원본 EVTX 파일은 원본 증거 보관 목적으로 별도 보존할 수 있다.\n"
     )
 
+    report.append("\n\n\n")
     report.append(section_header("4. Timeline Summary"))
     report.append(table(
         ["Metric", "Value"],
@@ -302,6 +306,7 @@ def build_report(
         ],
     ))
 
+    report.append("\n\n\n")
     report.append(section_header("5. Key Timeline"))
     report.append(table(
         ["Time", "Stage", "Severity", "Action", "Evidence ID", "IOC Refs"],
@@ -318,6 +323,7 @@ def build_report(
         ],
     ))
 
+    report.append("\n\n\n")
     report.append(section_header("6. IOC Summary"))
     report.append(table(
         ["Metric", "Value"],
@@ -349,6 +355,7 @@ def build_report(
         "\n> Note: 본 프로젝트에서 추출한 IOC는 로그 기반 분석 후보이며, 실제 악성 여부는 위협 인텔리전스, 샘플 분석, 네트워크 평판 조회 등을 통해 추가 검증이 필요하다.\n"
     )
 
+    report.append("\n\n\n")
     report.append(section_header("7. Evidence Highlights"))
     report.append(table(
         ["Evidence ID", "Time", "Source", "Event ID", "Title", "Stage", "Severity", "Summary"],
@@ -367,6 +374,7 @@ def build_report(
         ],
     ))
 
+    report.append("\n\n\n")
     report.append(section_header("8. MITRE ATT&CK Mapping"))
     report.append(table(
         ["Tactic", "Technique", "Stage", "Count", "Example Actions"],
@@ -382,6 +390,7 @@ def build_report(
         ],
     ))
 
+    report.append("\n\n\n")
     report.append(section_header("9. Analyst Assessment"))
     report.append(infer_assessment(timeline_data, iocs_data) + "\n\n")
     report.append(
@@ -389,6 +398,7 @@ def build_report(
         "시간순으로 연결되어 있어 단일 엔드포인트에서 의심 행위 흐름을 재구성할 수 있었다.\n"
     )
 
+    report.append("\n\n\n")
     report.append(section_header("10. Recommendations"))
     report.append(
         "- PowerShell Script Block Logging 및 Module Logging 활성화 상태를 유지한다.\n"
@@ -399,6 +409,7 @@ def build_report(
         "- 향후 KAPE, Hayabusa, Chainsaw, Velociraptor 등과 연계하여 수집 범위와 분석 정확도를 확장한다.\n"
     )
 
+    report.append("\n\n\n")
     report.append(section_header("11. Limitations"))
     report.append(
         "- 본 케이스는 실제 악성코드 감염이 아닌 안전한 시뮬레이션 기반 분석이다.\n"
@@ -408,6 +419,7 @@ def build_report(
         "- `example.com`은 테스트 목적지이며, 실제 악성 C2 도메인이 아니다.\n"
     )
 
+    report.append("\n\n\n")
     report.append(section_header("12. Appendix"))
     report.append("### Output Files\n\n")
     report.append(

@@ -3,8 +3,14 @@
 import pandas as pd
 import streamlit as st
 
-from .common import get_processed_dir, load_json, show_missing_file_warning
 from components import render_badge_table, ioc_type_label
+from .common import (
+    get_processed_dir,
+    load_json,
+    load_evidence_df,
+    load_timeline_df,
+    show_missing_file_warning,
+)
 
 
 # --------------------------------------------------
@@ -83,7 +89,7 @@ def render_summary_list(title: str, data: dict, label_map: dict = None):
 
 
 def render_ioc():
-    st.title("IOC")
+    st.title("🔬 IOC")
 
     path = get_processed_dir() / "iocs.json"
     data = load_json(path, default={})
@@ -182,3 +188,62 @@ def render_ioc():
 
         selected_row = filtered[filtered["value"].astype(str) == selected_value].iloc[0].to_dict()
         st.json(selected_row)
+
+        related_evidence_ids = selected_row.get("related_evidence_ids", [])
+
+        if not isinstance(related_evidence_ids, list):
+            related_evidence_ids = []
+
+        st.markdown("#### Related Evidence")
+
+        evidence_df = load_evidence_df()
+
+        if not evidence_df.empty and "evidence_id" in evidence_df.columns and related_evidence_ids:
+            related_evidence = evidence_df[evidence_df["evidence_id"].isin(related_evidence_ids)]
+
+            if not related_evidence.empty:
+                st.dataframe(
+                    related_evidence[
+                        [c for c in [
+                            "evidence_id",
+                            "title",
+                            "evidence_type",
+                            "timestamp",
+                            "attack_stage",
+                            "severity",
+                            "summary",
+                        ] if c in related_evidence.columns]
+                    ],
+                    use_container_width=True,
+                )
+            else:
+                st.caption("연결된 Evidence가 없습니다.")
+        else:
+            st.caption("연결된 Evidence가 없습니다.")
+
+        st.markdown("#### Related Timeline")
+
+        timeline_df = load_timeline_df()
+
+        if not timeline_df.empty and "evidence_id" in timeline_df.columns and related_evidence_ids:
+            related_timeline = timeline_df[timeline_df["evidence_id"].isin(related_evidence_ids)]
+
+            if not related_timeline.empty:
+                st.dataframe(
+                    related_timeline[
+                        [c for c in [
+                            "order",
+                            "timestamp",
+                            "stage",
+                            "severity",
+                            "action",
+                            "evidence_id",
+                            "ioc_refs",
+                        ] if c in related_timeline.columns]
+                    ],
+                    use_container_width=True,
+                )
+            else:
+                st.caption("연결된 Timeline row가 없습니다.")
+        else:
+            st.caption("연결된 Timeline row가 없습니다.")

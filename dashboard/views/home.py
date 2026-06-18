@@ -8,6 +8,7 @@ import sys
 import streamlit as st
 from pathlib import Path
 
+from components import render_badge_table, stage_label, spacer, dashed_divider, soft_divider
 from .common import (
     get_case_id,
     get_raw_dir,
@@ -240,6 +241,82 @@ def regenerate_analysis_files(case_id: str, data_root: str):
 
 
 # --------------------------------------------------
+# 상단 요약카드 
+# --------------------------------------------------
+
+def render_status(item: dict):
+    name = item.get("name", "-")
+    exists = item.get("exists", False)
+    path = item.get("path", "")
+
+    status_icon = "🟢" if exists else "🔴"
+
+    st.markdown(
+        f"""
+        <div style="
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            padding:7px 10px;
+            margin-bottom:6px;
+            border:1px solid #e5e7eb;
+            border-radius:8px;
+            background-color:#f9fafb;
+        ">
+            <div style="display:flex; flex-direction:column;">
+                <span style="font-weight:700; color:#374151;">{name}</span>
+                <span style="font-size:0.75rem; color:#6b7280;">{path}</span>
+            </div>
+            {status_icon}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_metric_card(title: str, value, delta: str = None, icon: str = "▶"):
+    delta_html = ""
+    if delta:
+        delta_html = f"""
+        <div style="
+            margin-top:6px;
+            font-size:0.85rem;
+            font-weight:700;
+            color:#4b5563;
+        ">{delta}</div>
+        """
+
+    st.markdown(
+        f"""
+        <div style="
+            border:1px solid #e5e7eb;
+            border-radius:12px;
+            padding:14px 16px;
+            background-color:#ffffff;
+            min-height:105px;
+        ">
+            <div style="
+                font-size:1.02rem;
+                font-weight:800;
+                color:#374151;
+                margin-bottom:8px;
+                white-space:nowrap;
+            ">{icon} {title}</div>
+            <div style="
+                font-size:1.65rem;
+                font-weight:900;
+                color:#111827;
+                line-height:1.2;
+                word-break:break-word;
+            ">{value}</div>
+            {delta_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# --------------------------------------------------
 # 홈 렌더링 
 # --------------------------------------------------
 
@@ -269,19 +346,10 @@ def render_home():
 
     st.markdown(f"## 📂 Case ID | `{case_id}`")
 
-    col1, col2, col3, col4, col5 = st.columns(5)
-
-    col1.metric("▶ Timeline Events", timeline_summary.get("total_events", 0))
-    col2.metric("▶ Evidence Items", len(evidence))
-    col3.metric("▶ IOC Candidates", ioc_summary.get("total", 0))
-    col4.metric("▶ Host", metadata.get("host", "-"))
-    col5.metric("▶ Case Risk", f"{risk['score']}/100", risk["level"])
-
-
     status_title_col, regen_button_col = st.columns([7, 2])
 
     with status_title_col:
-        st.markdown("### Data Status")
+        st.markdown("### ▶ Data Status")
 
     with regen_button_col:
         regenerate_clicked = st.button(
@@ -309,38 +377,81 @@ def render_home():
             st.error("분석 파일 재생성 중 오류가 발생했습니다.")
             st.code(str(e), language="text")
 
-    data1, data2, data3, data4, data5, data6 = st.columns(6)
-
     processed_dir = Path(st.session_state.data_root) / "processed" / st.session_state.case_id
     raw_dir = Path(st.session_state.data_root) / "raw" / st.session_state.case_id
 
-    with data1:
-        dataPath = processed_dir / "events.jsonl"
-        status = dataPath.exists()
-        st.markdown(f"events [{"🟢" if status else "🔴"}]")
-    with data2:
-        dataPath = processed_dir / "evidence.json"
-        status = dataPath.exists()
-        st.markdown(f"evidence [{"🟢" if status else "🔴"}]")
-    with data3:
-        dataPath = processed_dir / "iocs.json"
-        status = dataPath.exists()
-        st.markdown(f"iocs [{"🟢" if status else "🔴"}]")
-    with data4:
-        dataPath = processed_dir / "timeline.json"
-        status = dataPath.exists()
-        st.markdown(f"timeline [{"🟢" if status else "🔴"}]")
-    with data5:
-        dataPath = processed_dir / "report.md"
-        status = dataPath.exists()
-        st.markdown(f"report [{"🟢" if status else "🔴"}]")
-    with data6:
-        dataPath = raw_dir / "case_metadata.json"
-        status = dataPath.exists()
-        st.markdown(f"metadata [{"🟢" if status else "🔴"}]")
+    status_items = [
+        {
+            "name": "events",
+            "exists": (processed_dir / "events.jsonl").exists(),
+            "path": "processed/events.jsonl",
+        },
+        {
+            "name": "evidence",
+            "exists": (processed_dir / "evidence.json").exists(),
+            "path": "processed/evidence.json",
+        },
+        {
+            "name": "iocs",
+            "exists": (processed_dir / "iocs.json").exists(),
+            "path": "processed/iocs.json",
+        },
+        {
+            "name": "timeline",
+            "exists": (processed_dir / "timeline.json").exists(),
+            "path": "processed/timeline.json",
+        },
+        {
+            "name": "report",
+            "exists": (processed_dir / "report.md").exists(),
+            "path": "processed/report.md",
+        },
+        {
+            "name": "metadata",
+            "exists": (raw_dir / "case_metadata.json").exists(),
+            "path": "raw/case_metadata.json",
+        },
+    ]
 
+    status_col1, status_col2, status_col3, status_col4, status_col5, status_col6 = st.columns(6)
 
+    with status_col1:
+        render_status(status_items[0])
+    with status_col2:
+        render_status(status_items[1])
+    with status_col3:
+        render_status(status_items[2])
+    with status_col4:
+        render_status(status_items[3])
+    with status_col5:
+        render_status(status_items[4])
+    with status_col6:
+        render_status(status_items[5])
+
+    spacer(20)
     st.divider()
+    spacer(20)
+
+
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    with col1:
+        render_metric_card("Timeline Events", timeline_summary.get("total_events", 0), icon="🕒")
+
+    with col2:
+        render_metric_card("Evidence Items", len(evidence), icon="📁")
+
+    with col3:
+        render_metric_card("IOC Candidates", ioc_summary.get("total", 0), icon="🎯")
+
+    with col4:
+        render_metric_card("Host", metadata.get("host", "-"), icon="💻")
+
+    with col5:
+        render_metric_card("Case Risk", f"{risk['score']}/100", delta=risk["level"], icon="⚠️")
+
+    spacer()
+    dashed_divider()
 
     st.subheader("Case 정보")
 
@@ -392,6 +503,57 @@ def render_home():
     stage_summary = timeline.get("stage_summary", [])
 
     if stage_summary:
-        st.dataframe(stage_summary, use_container_width=True)
+        stage_rows = []
+
+        for item in stage_summary:
+            high_count = item.get("high_count", 0) or 0
+            medium_count = item.get("medium_count", 0) or 0
+
+            if high_count > 0:
+                stage_severity = "High"
+            elif medium_count > 0:
+                stage_severity = "Medium"
+            else:
+                stage_severity = "Low"
+
+            stage_rows.append({
+                "stage": item.get("stage"),
+                "severity": stage_severity,
+                "count": item.get("count"),
+                "first_seen": item.get("first_seen"),
+                "last_seen": item.get("last_seen"),
+                "high_count": high_count,
+                "medium_count": medium_count,
+                "representative_actions": "; ".join(item.get("representative_actions", [])),
+            })
+
+        render_badge_table(
+            rows=stage_rows,
+            columns=[
+                "stage",
+                "severity",
+                "count",
+                "first_seen",
+                "last_seen",
+                "high_count",
+                "medium_count",
+                "representative_actions",
+            ],
+            badge_columns={"severity"},
+            right_columns={"count", "high_count", "medium_count"},
+            column_renderers={
+                "stage": stage_label,
+            },
+            column_widths={
+                "stage": "170px",
+                "severity": "95px",
+                "count": "70px",
+                "first_seen": "170px",
+                "last_seen": "170px",
+                "high_count": "80px",
+                "medium_count": "95px",
+                "representative_actions": "360px",
+            },
+        )
     else:
         st.info("Stage summary가 없습니다.")

@@ -9,9 +9,46 @@ from streamlit_option_menu import option_menu
 
 
 
-# ===========================================
+# --------------------------------------------------
+# 공백/구분자
+# --------------------------------------------------
+
+def spacer(height: int = 16):
+    st.markdown(
+        f"<div style='height:{height}px;'></div>",
+        unsafe_allow_html=True,
+    )
+
+
+def dashed_divider(margin: int = 24):
+    st.markdown(
+        f"""
+        <hr style="
+            border: none;
+            border-top: 3px dashed #d1d5db;
+            margin: {margin}px 0;
+        ">
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def soft_divider(margin: int = 20):
+    st.markdown(
+        f"""
+        <hr style="
+            border: none;
+            border-top: 1px solid #e5e7eb;
+            margin: {margin}px 0;
+        ">
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# --------------------------------------------------
 # 타입 라벨 렌더러
-# ===========================================
+# --------------------------------------------------
 
 IOC_TYPE_STYLE = {
     "ip": ("🖥️", "IP", "#2563eb"),
@@ -36,6 +73,18 @@ EVIDENCE_TYPE_STYLE = {
     "Archive Activity": ("📦", "압축 활동", "#9333ea"),
     "Logon": ("👤", "로그인", "#0369a1"),
     "Log Clearing": ("🧹", "로그 삭제", "#be123c"),
+}
+
+STAGE_STYLE = {
+    "Initial Context": ("🚪", "초기 접속", "#64748b"),
+    "Execution": ("▶️", "실행", "#dc2626"),
+    "Discovery": ("🔎", "탐색", "#2563eb"),
+    "Collection/Staging": ("📦", "수집/스테이징", "#7c3aed"),
+    "Network Activity": ("🌐", "네트워크 활동", "#0f766e"),
+    "Command and Control": ("📡", "C2 통신", "#be123c"),
+    "Defense Evasion": ("🛡️", "방어 회피", "#b45309"),
+    "Cleanup": ("🧹", "정리/삭제", "#4b5563"),
+    "Unknown": ("❔", "미분류", "#6b7280"),
 }
 
 
@@ -65,10 +114,13 @@ def ioc_type_label(value: str) -> str:
 def evidence_type_label(value: str) -> str:
     return type_label(value, EVIDENCE_TYPE_STYLE)
 
+def stage_label(value: str) -> str:
+    return type_label(value, STAGE_STYLE)
 
-# ===========================================
+
+# --------------------------------------------------
 # 위험도 배지
-# ===========================================
+# --------------------------------------------------
 
 SEVERITY_ORDER = {
     "critical": 5,
@@ -250,8 +302,8 @@ def render_menu():
     with st.sidebar:
         return option_menu(
             None,
-            ["홈", "타임라인", "IOC", "증거", "리포트"],
-            icons=["house", "shield", "crosshair", "diagram-3", "file-earmark-text"],
+            ["CASE 요약", "타임라인", "IOC", "증거", "리포트"],
+            icons=["house-door", "clock-history", "crosshair", "folder2-open", "file-earmark-text"],
             menu_icon=None,
             default_index=0,
             styles={

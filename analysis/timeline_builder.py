@@ -111,9 +111,10 @@ def short_text(value: Optional[str], limit: int = 220) -> str:
 
 def build_action(evidence: Dict[str, Any]) -> str:
     """
-    Evidence 정보를 사람이 읽기 쉬운 timeline action으로 변환.
+    Evidence 정보를 사람이 읽기 쉬운 한국어 timeline action으로 변환한다.
+    title 문자열에 의존하지 않고 rule_id, evidence_type, 주요 필드를 기준으로 생성한다.
     """
-    title = evidence.get("title") or ""
+    rule_id = evidence.get("rule_id") or ""
     evidence_type = evidence.get("evidence_type") or ""
     image = evidence.get("image") or ""
     command_line = evidence.get("command_line") or ""
@@ -121,58 +122,123 @@ def build_action(evidence: Dict[str, Any]) -> str:
     destination_ip = evidence.get("destination_ip") or ""
     destination_port = evidence.get("destination_port") or ""
     query_name = evidence.get("query_name") or ""
+    title = evidence.get("title") or ""
 
-    lower_title = title.lower()
+    # Rule ID 기반 우선 처리
+    if rule_id == "EV-SYSMON-001":
+        if command_line:
+            return f"PowerShell 프로세스 실행: {short_text(command_line, 120)}"
+        return "PowerShell 프로세스 실행"
 
-    if "powershell process" in lower_title:
-        return "PowerShell process executed"
+    if rule_id == "EV-SYSMON-002":
+        if command_line:
+            return f"명령 프롬프트 실행: {short_text(command_line, 120)}"
+        return "명령 프롬프트 실행"
 
-    if "command shell" in lower_title:
-        return "Command shell executed"
+    if rule_id == "EV-SYSMON-003":
+        if command_line:
+            return f"시스템/계정 탐색 명령 실행: {short_text(command_line, 120)}"
+        return "시스템/계정 탐색 명령 실행"
 
-    if "system discovery" in lower_title:
-        return "System or account discovery command observed"
-
-    if "file created" in lower_title or evidence_type == "File Activity":
+    if rule_id == "EV-SYSMON-004":
         if target_filename:
-            return f"File created: {target_filename}"
-        return "File creation observed"
+            return f"임시 경로 파일 생성: {target_filename}"
+        return "임시 경로 파일 생성"
 
-    if "network connection" in lower_title or evidence_type == "Network Connection":
+    if rule_id == "EV-SYSMON-005":
         if destination_ip:
             dest = destination_ip
             if destination_port:
                 dest += f":{destination_port}"
-            return f"Network connection observed: {dest}"
-        return "Network connection observed"
+            return f"네트워크 연결 발생: {dest}"
+        return "네트워크 연결 발생"
 
-    if "dns query" in lower_title or evidence_type == "DNS Query":
+    if rule_id == "EV-SYSMON-006":
         if query_name:
-            return f"DNS query observed: {query_name}"
-        return "DNS query observed"
+            return f"DNS 질의 발생: {query_name}"
+        return "DNS 질의 발생"
 
-    if "script block" in lower_title:
-        return "PowerShell script block logged"
+    if rule_id == "EV-PS-001":
+        if command_line:
+            return f"PowerShell 스크립트 블록 기록: {short_text(command_line, 120)}"
+        return "PowerShell 스크립트 블록 기록"
 
-    if "web request" in lower_title:
-        return "PowerShell web request observed"
+    if rule_id == "EV-PS-002":
+        if command_line:
+            return f"PowerShell 웹 요청 명령 실행: {short_text(command_line, 120)}"
+        return "PowerShell 웹 요청 명령 실행"
 
-    if "archive" in lower_title:
-        return "Archive creation observed"
+    if rule_id == "EV-PS-003":
+        if command_line:
+            return f"PowerShell 압축 생성 명령 실행: {short_text(command_line, 120)}"
+        return "PowerShell 압축 생성 명령 실행"
 
-    if "successful logon" in lower_title:
-        return "Successful logon observed"
+    if rule_id == "EV-SEC-001":
+        if image:
+            return f"Windows 보안 로그 기반 프로세스 생성: {image}"
+        return "Windows 보안 로그 기반 프로세스 생성"
 
-    if "security log cleared" in lower_title:
-        return "Security event log cleared"
+    if rule_id == "EV-SEC-002":
+        user = evidence.get("user") or "-"
+        return f"로그온 성공 이벤트 확인: {user}"
 
+    if rule_id == "EV-SEC-003":
+        return "보안 이벤트 로그 삭제 확인"
+
+    # evidence_type 기반 보조 처리
+    if evidence_type == "Process Execution":
+        if image:
+            return f"프로세스 실행 확인: {image}"
+        return "프로세스 실행 확인"
+
+    if evidence_type == "Script Execution":
+        return "스크립트 실행 흔적 확인"
+
+    if evidence_type == "Discovery Command":
+        if command_line:
+            return f"탐색 명령 확인: {short_text(command_line, 120)}"
+        return "탐색 명령 확인"
+
+    if evidence_type == "File Activity":
+        if target_filename:
+            return f"파일 활동 확인: {target_filename}"
+        return "파일 활동 확인"
+
+    if evidence_type == "Network Connection":
+        if destination_ip:
+            dest = destination_ip
+            if destination_port:
+                dest += f":{destination_port}"
+            return f"네트워크 연결 확인: {dest}"
+        return "네트워크 연결 확인"
+
+    if evidence_type == "DNS Query":
+        if query_name:
+            return f"DNS 질의 확인: {query_name}"
+        return "DNS 질의 확인"
+
+    if evidence_type == "Network Command":
+        if command_line:
+            return f"네트워크 관련 명령 확인: {short_text(command_line, 120)}"
+        return "네트워크 관련 명령 확인"
+
+    if evidence_type == "Archive Activity":
+        return "압축 파일 생성 활동 확인"
+
+    if evidence_type == "Logon":
+        return "로그온 이벤트 확인"
+
+    if evidence_type == "Log Clearing":
+        return "로그 삭제 이벤트 확인"
+
+    # 최종 fallback
     if command_line:
-        return f"Command observed: {short_text(command_line, 120)}"
+        return f"명령 실행 확인: {short_text(command_line, 120)}"
 
     if image:
-        return f"Process observed: {image}"
+        return f"프로세스 확인: {image}"
 
-    return title or "Evidence observed"
+    return title or "증거 이벤트 확인"
 
 
 def load_ioc_index(iocs_data: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
