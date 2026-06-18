@@ -51,20 +51,35 @@ def run_hayabusa_pipeline(project_root: Path, raw_dir: Path, processed_dir: Path
     coverage_path = hayabusa_dir / "hayabusa_coverage.json"
 
     timeline_path = processed_dir / "timeline.json"
+    timeline_data = load_json(timeline_path, default={})
+    timeline_summary = timeline_data.get("summary", {})
+
+    case_start_time = timeline_summary.get("first_seen")
+    case_end_time = timeline_summary.get("last_seen")
+    logs.append("\n===== hayabusa filter range =====")
+    logs.append(f"case_start_time: {case_start_time}")
+    logs.append(f"case_end_time: {case_end_time}")
 
     importer_script = project_root / "analysis" / "hayabusa_importer.py"
     correlator_script = project_root / "analysis" / "hayabusa_correlator.py"
     coverage_script = project_root / "analysis" / "hayabusa_coverage.py"
 
-    commands = [
-        [
-            sys.executable,
-            str(importer_script),
-            "--csv", str(raw_hayabusa_csv),
-            "--out-findings", str(findings_path),
-            "--out-summary", str(summary_path),
-        ],
+    importer_cmd = [
+        sys.executable,
+        str(importer_script),
+        "--csv", str(raw_hayabusa_csv),
+        "--out-findings", str(findings_path),
+        "--out-summary", str(summary_path),
     ]
+
+    if case_start_time and case_end_time:
+        importer_cmd.extend([
+            "--start-time", str(case_start_time),
+            "--end-time", str(case_end_time),
+            "--time-margin-minutes", "5",
+        ])
+
+    commands = [importer_cmd]
 
     if timeline_path.exists():
         commands.append(
@@ -534,9 +549,9 @@ def render_home():
         render_status(status_items[5])
 
     spacer(20)
-    st.divider()
-    spacer(20)
+    dashed_divider()
 
+    st.subheader("▶ Summary")
 
     col1, col2, col3, col4, col5 = st.columns(5)
 
@@ -556,175 +571,8 @@ def render_home():
         render_metric_card("Case Risk", f"{risk['score']}/100", delta=risk["level"], icon="⚠️")
 
     spacer()
-    dashed_divider()
 
-    st.subheader("Hayabusa Summary")
-
-    hy_col1, hy_col2, hy_col3, hy_col4 = st.columns(4)
-
-    with hy_col1:
-        render_metric_card("Hayabusa Findings", hayabusa_summary.get("total", 0), icon="🦅")
-
-    with hy_col2:
-        render_metric_card("First Detection", hayabusa_summary.get("first_seen", "-"), icon="⏱️")
-
-    with hy_col3:
-        render_metric_card("Last Detection", hayabusa_summary.get("last_seen", "-"), icon="⏱️")
-
-    with hy_col4:
-        high_like = (
-            hayabusa_summary.get("by_level", {}).get("Critical", 0)
-            + hayabusa_summary.get("by_level", {}).get("High", 0)
-        )
-        render_metric_card("High+ Alerts", high_like, icon="🚨")
-
-    spacer(50)
-
-
-    findings = hayabusa_findings.get("findings", [])
-
-    if findings:
-        st.markdown("#### Hayabusa Findings")
-
-        display_rows = []
-
-        for item in findings[:300]:
-            display_rows.append({
-                "hayabusa_id": item.get("hayabusa_id"),
-                "timestamp": item.get("timestamp"),
-                "level": item.get("level"),
-                "rule_title": item.get("rule_title"),
-                "channel": item.get("channel"),
-                "event_id": item.get("event_id"),
-                "computer": item.get("computer"),
-            })
-
-        render_badge_table(
-            rows=display_rows,
-            columns=[
-                "hayabusa_id",
-                "timestamp",
-                "level",
-                "rule_title",
-                "channel",
-                "event_id",
-                "computer",
-            ],
-            badge_columns={"level"},
-            right_columns={"event_id"},
-            column_widths={
-                "hayabusa_id": "105px",
-                "timestamp": "180px",
-                "level": "95px",
-                "rule_title": "360px",
-                "channel": "150px",
-                "event_id": "80px",
-                "computer": "150px",
-            },
-        )
-
-
-    coverage_path = get_processed_dir() / "hayabusa" / "hayabusa_coverage.json"
-    coverage = load_json(coverage_path, default={})
-
-    if coverage:
-        st.subheader("Hayabusa Coverage Comparison")
-
-        coverage_summary = coverage.get("summary", {})
-
-        c1, c2, c3, c4, c5 = st.columns(5)
-
-        with c1:
-            render_metric_card("Both", coverage_summary.get("both", 0), icon="🔗")
-
-        with c2:
-            render_metric_card("Internal Only", coverage_summary.get("internal_only", 0), icon="🧩")
-
-        with c3:
-            render_metric_card("Hayabusa Only", coverage_summary.get("hayabusa_only", 0), icon="🦅")
-
-        with c4:
-            render_metric_card("Internal Total", coverage_summary.get("internal_total", 0), icon="📁")
-
-        with c5:
-            render_metric_card("Hayabusa Total", coverage_summary.get("hayabusa_total", 0), icon="📊")
-
-        with st.expander("Both - 자체 룰과 Hayabusa 모두 탐지"):
-            render_badge_table(
-                rows=coverage.get("both", [])[:100],
-                columns=[
-                    "evidence_id",
-                    "timestamp",
-                    "severity",
-                    "stage",
-                    "action",
-                    "hayabusa_match_count",
-                    "hayabusa_rules",
-                ],
-                badge_columns={"severity"},
-                right_columns={"hayabusa_match_count"},
-                column_widths={
-                    "evidence_id": "105px",
-                    "timestamp": "180px",
-                    "severity": "95px",
-                    "stage": "150px",
-                    "action": "320px",
-                    "hayabusa_match_count": "90px",
-                    "hayabusa_rules": "360px",
-                },
-            )
-
-        with st.expander("Internal Only - 자체 룰만 탐지"):
-            render_badge_table(
-                rows=coverage.get("internal_only", [])[:100],
-                columns=[
-                    "evidence_id",
-                    "timestamp",
-                    "severity",
-                    "stage",
-                    "action",
-                ],
-                badge_columns={"severity"},
-                column_widths={
-                    "evidence_id": "105px",
-                    "timestamp": "180px",
-                    "severity": "95px",
-                    "stage": "150px",
-                    "action": "420px",
-                },
-            )
-
-        with st.expander("Hayabusa Only - Hayabusa만 탐지"):
-            render_badge_table(
-                rows=coverage.get("hayabusa_only", [])[:100],
-                columns=[
-                    "hayabusa_id",
-                    "timestamp",
-                    "level",
-                    "rule_title",
-                    "channel",
-                    "event_id",
-                ],
-                badge_columns={"level"},
-                right_columns={"event_id"},
-                column_widths={
-                    "hayabusa_id": "105px",
-                    "timestamp": "180px",
-                    "level": "95px",
-                    "rule_title": "380px",
-                    "channel": "150px",
-                    "event_id": "80px",
-                },
-            )
-
-
-
-    spacer()
-    dashed_divider()
-
-
-
-    st.subheader("Case 정보")
+    st.subheader("▶ Case 정보")
 
     info_col1, info_col2, info_col3 = st.columns(3)
 
@@ -767,9 +615,8 @@ def render_home():
             else:
                 st.write("- No stage bonus applied")
 
-    st.divider()
 
-    st.subheader("Stage Summary")
+    st.subheader("▶ Stage Summary")
 
     stage_summary = timeline.get("stage_summary", [])
 
@@ -828,3 +675,55 @@ def render_home():
         )
     else:
         st.info("Stage summary가 없습니다.")
+
+
+
+    st.divider()
+
+    st.subheader("🛠️ Hayabusa")
+    spacer(30)
+
+    hy_col1, hy_col2, hy_col3, hy_col4 = st.columns(4)
+
+    with hy_col1:
+        render_metric_card("Hayabusa Findings", hayabusa_summary.get("total", 0), icon="🦅")
+
+    with hy_col2:
+        render_metric_card("First Detection", hayabusa_summary.get("first_seen", "-"), icon="⏱️")
+
+    with hy_col3:
+        render_metric_card("Last Detection", hayabusa_summary.get("last_seen", "-"), icon="⏱️")
+
+    with hy_col4:
+        high_like = (
+            hayabusa_summary.get("by_level", {}).get("Critical", 0)
+            + hayabusa_summary.get("by_level", {}).get("High", 0)
+        )
+        render_metric_card("High+ Alerts", high_like, icon="🚨")
+
+    spacer(50)
+
+    coverage_path = get_processed_dir() / "hayabusa" / "hayabusa_coverage.json"
+    coverage = load_json(coverage_path, default={})
+
+    if coverage:
+        st.markdown("#### Hayabusa Coverage Comparison")
+
+        coverage_summary = coverage.get("summary", {})
+
+        c1, c2, c3, c4, c5 = st.columns(5)
+
+        with c1:
+            render_metric_card("Both", coverage_summary.get("both", 0), icon="🔗")
+
+        with c2:
+            render_metric_card("Internal Only", coverage_summary.get("internal_only", 0), icon="🧩")
+
+        with c3:
+            render_metric_card("Hayabusa Only", coverage_summary.get("hayabusa_only", 0), icon="🦅")
+
+        with c4:
+            render_metric_card("Internal Total", coverage_summary.get("internal_total", 0), icon="📁")
+
+        with c5:
+            render_metric_card("Hayabusa Total", coverage_summary.get("hayabusa_total", 0), icon="📊")

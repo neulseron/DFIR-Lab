@@ -302,8 +302,8 @@ def render_menu():
     with st.sidebar:
         return option_menu(
             None,
-            ["CASE 요약", "타임라인", "IOC", "증거", "리포트"],
-            icons=["house-door", "clock-history", "crosshair", "folder2-open", "file-earmark-text"],
+            ["CASE 요약", "타임라인", "IOC", "증거", "리포트", "Hayabusa"],
+            icons=["house-door", "clock-history", "crosshair", "folder2-open", "file-earmark-text", "crosshair"],
             menu_icon=None,
             default_index=0,
             styles={
