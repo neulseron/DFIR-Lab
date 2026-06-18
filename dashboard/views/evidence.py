@@ -98,5 +98,15 @@ def render_evidence():
         st.write(f"**MITRE:** {row.get('mitre_tactic', '-')} / {row.get('mitre_technique', '-')}")
         st.write(f"**Summary:** {row.get('summary', '-')}")
 
+        st.markdown("#### Rule Match Explanation")
+        st.write(f"**Rule ID:** {row.get('rule_id', '-')}")
+        st.write(f"**Matched Reason:** {row.get('matched_reason', '-')}")
+        st.write(f"**Matched Fields:** {row.get('matched_fields', '-')}")
+        st.write(f"**Matched Keywords:** {row.get('matched_keywords', '-')}")
+
+        match_details = row.get("match_details", [])
+        if isinstance(match_details, list) and match_details:
+            st.dataframe(match_details, use_container_width=True)
+
         with st.expander("Raw Evidence Fields"):
             st.json(row)

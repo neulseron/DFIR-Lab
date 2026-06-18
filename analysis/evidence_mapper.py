@@ -42,6 +42,149 @@ def contains_any(value: Optional[str], keywords: List[str]) -> bool:
     return False
 
 
+def find_matching_keywords(value: Optional[str], keywords: List[str]) -> List[str]:
+    value_lower = lower(value)
+    matched = []
+
+    for keyword in keywords:
+        if keyword.lower() in value_lower:
+            matched.append(keyword)
+
+    return matched
+
+
+def explain_rule_match(event: Dict[str, Any], rule: Dict[str, Any]) -> tuple[bool, List[Dict[str, Any]]]:
+    """
+    룰 매칭 여부와 함께 어떤 조건이 어떤 필드에서 만족됐는지 설명한다.
+    """
+    details: List[Dict[str, Any]] = []
+
+    if rule.get("source") and event.get("source") != rule.get("source"):
+        return False, []
+
+    if rule.get("event_id") is not None and event.get("event_id") != rule.get("event_id"):
+        return False, []
+
+    conditions = rule.get("conditions") or {}
+
+    if conditions.get("always") is True:
+        details.append({
+            "condition": "always",
+            "field": "-",
+            "matched_value": "true",
+            "description": "Rule condition is always true for this source/event_id."
+        })
+        return True, details
+
+    if "image_contains" in conditions:
+        matched = find_matching_keywords(event.get("image"), conditions["image_contains"])
+        if not matched:
+            return False, []
+
+        details.append({
+            "condition": "image_contains",
+            "field": "image",
+            "matched_value": ", ".join(matched),
+            "description": f"Image field contains: {', '.join(matched)}"
+        })
+
+    if "command_contains" in conditions:
+        command_sources = {
+            "command_line": event.get("command_line") or "",
+            "script_block_text": event.get("script_block_text") or "",
+            "raw_message": event.get("raw_message") or "",
+        }
+
+        matched_any = []
+
+        for field, value in command_sources.items():
+            matched = find_matching_keywords(value, conditions["command_contains"])
+            if matched:
+                matched_any.extend(matched)
+                details.append({
+                    "condition": "command_contains",
+                    "field": field,
+                    "matched_value": ", ".join(matched),
+                    "description": f"{field} contains: {', '.join(matched)}"
+                })
+
+        if not matched_any:
+            return False, []
+
+    if "target_filename_contains" in conditions:
+        matched = find_matching_keywords(
+            event.get("target_filename"),
+            conditions["target_filename_contains"],
+        )
+        if not matched:
+            return False, []
+
+        details.append({
+            "condition": "target_filename_contains",
+            "field": "target_filename",
+            "matched_value": ", ".join(matched),
+            "description": f"Target filename contains: {', '.join(matched)}"
+        })
+
+    if conditions.get("destination_ip_exists") is True:
+        if not field_exists(event, "destination_ip"):
+            return False, []
+
+        details.append({
+            "condition": "destination_ip_exists",
+            "field": "destination_ip",
+            "matched_value": event.get("destination_ip"),
+            "description": "Destination IP field exists."
+        })
+
+    if conditions.get("external_destination_ip") is True:
+        ip = event.get("destination_ip")
+        if not ip or is_private_ip(ip):
+            return False, []
+
+        details.append({
+            "condition": "external_destination_ip",
+            "field": "destination_ip",
+            "matched_value": ip,
+            "description": "Destination IP is not private/internal."
+        })
+
+    if conditions.get("query_name_exists") is True:
+        if not field_exists(event, "query_name"):
+            return False, []
+
+        details.append({
+            "condition": "query_name_exists",
+            "field": "query_name",
+            "matched_value": event.get("query_name"),
+            "description": "DNS query name exists."
+        })
+
+    if conditions.get("script_block_exists") is True:
+        if not field_exists(event, "script_block_text"):
+            return False, []
+
+        details.append({
+            "condition": "script_block_exists",
+            "field": "script_block_text",
+            "matched_value": "exists",
+            "description": "PowerShell script block text exists."
+        })
+
+    if conditions.get("image_exists") is True:
+        if not field_exists(event, "image"):
+            return False, []
+
+        details.append({
+            "condition": "image_exists",
+            "field": "image",
+            "matched_value": event.get("image"),
+            "description": "Process image field exists."
+        })
+
+    return True, details
+
+
 def field_exists(event: Dict[str, Any], field: str) -> bool:
     value = event.get(field)
     return value is not None and str(value).strip() != ""
@@ -144,6 +287,7 @@ def build_evidence_item(
     event: Dict[str, Any],
     rule: Dict[str, Any],
     index: int,
+    match_details: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     evidence_id = f"EV-{index:05d}"
 
@@ -171,6 +315,16 @@ def build_evidence_item(
 
     summary = " | ".join(summary_parts) if summary_parts else rule.get("title", "Evidence observed")
 
+    match_details = match_details or []
+    matched_fields = sorted({item.get("field") for item in match_details if item.get("field") and item.get("field") != "-"})
+    matched_keywords = sorted({item.get("matched_value") for item in match_details if item.get("matched_value")})
+    matched_reason = "; ".join(
+        item.get("description", "")
+        for item in match_details
+        if item.get("description")
+    )
+
+    
     return {
         "evidence_id": evidence_id,
         "case_id": event.get("case_id"),
@@ -186,6 +340,10 @@ def build_evidence_item(
         "mitre_technique": rule.get("mitre_technique"),
         "forensic_meaning": rule.get("forensic_meaning"),
         "summary": summary,
+        "matched_reason": matched_reason,
+        "matched_fields": matched_fields,
+        "matched_keywords": matched_keywords,
+        "match_details": match_details,
 
         # 원본 이벤트의 핵심 필드도 같이 보존
         "user": event.get("user"),
@@ -209,8 +367,17 @@ def map_evidence(events: List[Dict[str, Any]], rules: List[Dict[str, Any]]) -> L
         matched = False
 
         for rule in rules:
-            if event_matches_rule(event, rule):
-                evidence_items.append(build_evidence_item(event, rule, index))
+            is_matched, match_details = explain_rule_match(event, rule)
+
+            if is_matched:
+                evidence_items.append(
+                    build_evidence_item(
+                        event=event,
+                        rule=rule,
+                        index=index,
+                        match_details=match_details,
+                    )
+                )
                 index += 1
                 matched = True
 

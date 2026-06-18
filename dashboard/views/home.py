@@ -1,4 +1,7 @@
 # dashboard/views/home.py
+# streamlit run dashboard/app.py
+
+
 import subprocess
 import sys
 
@@ -12,6 +15,120 @@ from .common import (
     load_json,
     show_missing_file_warning,
 )
+
+
+# --------------------------------------------------
+# 위험도 계산
+# --------------------------------------------------
+
+def calculate_case_risk(evidence_items: list, iocs_data: dict, timeline_data: dict) -> dict:
+    """
+    포트폴리오/MVP용 Case 위험도 점수.
+    실제 악성 여부 확정 점수가 아니라 분석 우선순위 점수로 사용한다.
+    """
+
+    evidence_weights = {
+        "High": 18,
+        "Medium": 8,
+        "Low": 2,
+        "Informational": 0,
+    }
+
+    ioc_weights = {
+        "High": 6,
+        "Medium": 3,
+        "Low": 1,
+        "Informational": 0,
+    }
+
+    evidence_score = 0
+    evidence_breakdown = {
+        "High": 0,
+        "Medium": 0,
+        "Low": 0,
+        "Informational": 0,
+    }
+
+    for ev in evidence_items:
+        severity = ev.get("severity") or "Informational"
+        evidence_breakdown[severity] = evidence_breakdown.get(severity, 0) + 1
+        evidence_score += evidence_weights.get(severity, 0)
+
+    # Evidence 점수가 너무 커지는 것을 방지
+    evidence_score = min(evidence_score, 70)
+
+    ioc_score = 0
+    ioc_breakdown = {
+        "High": 0,
+        "Medium": 0,
+        "Low": 0,
+        "Informational": 0,
+    }
+
+    for ioc in iocs_data.get("iocs", []):
+        severity = ioc.get("severity") or "Informational"
+        ioc_breakdown[severity] = ioc_breakdown.get(severity, 0) + 1
+        ioc_score += ioc_weights.get(severity, 0)
+
+    # IOC는 후보 지표이므로 점수 영향 제한
+    ioc_score = min(ioc_score, 15)
+
+    by_stage = timeline_data.get("summary", {}).get("by_stage", {})
+
+    stage_bonus = 0
+    stage_reasons = []
+
+    if by_stage.get("Execution"):
+        stage_bonus += 5
+        stage_reasons.append("Execution stage observed")
+
+    if by_stage.get("Discovery"):
+        stage_bonus += 5
+        stage_reasons.append("Discovery stage observed")
+
+    if by_stage.get("Collection/Staging"):
+        stage_bonus += 7
+        stage_reasons.append("Collection/Staging stage observed")
+
+    if by_stage.get("Network Activity") or by_stage.get("Command and Control"):
+        stage_bonus += 8
+        stage_reasons.append("Network/C2 related activity observed")
+
+    if by_stage.get("Defense Evasion"):
+        stage_bonus += 15
+        stage_reasons.append("Defense Evasion activity observed")
+
+    stage_bonus = min(stage_bonus, 25)
+
+    total_score = min(100, evidence_score + ioc_score + stage_bonus)
+
+    if total_score >= 80:
+        level = "Critical"
+        interpretation = "강한 침해 흐름 또는 고위험 증거가 확인되어 우선 분석이 필요합니다."
+    elif total_score >= 60:
+        level = "High"
+        interpretation = "여러 단계의 의심 행위가 연결되어 높은 우선순위로 분석해야 합니다."
+    elif total_score >= 30:
+        level = "Medium"
+        interpretation = "일부 의심 행위가 확인되었으며 추가 검토가 필요합니다."
+    elif total_score > 0:
+        level = "Low"
+        interpretation = "낮은 수준의 이벤트가 관찰되었으나 명확한 침해 흐름은 제한적입니다."
+    else:
+        level = "None"
+        interpretation = "위험도를 계산할 만한 증거가 부족합니다."
+
+    return {
+        "score": total_score,
+        "level": level,
+        "interpretation": interpretation,
+        "evidence_score": evidence_score,
+        "ioc_score": ioc_score,
+        "stage_bonus": stage_bonus,
+        "evidence_breakdown": evidence_breakdown,
+        "ioc_breakdown": ioc_breakdown,
+        "stage_reasons": stage_reasons,
+    }
 
 
 # --------------------------------------------------
@@ -144,15 +261,21 @@ def render_home():
 
     timeline_summary = timeline.get("summary", {})
     ioc_summary = iocs.get("summary", {})
+    risk = calculate_case_risk(
+        evidence_items=evidence,
+        iocs_data=iocs,
+        timeline_data=timeline,
+    )
 
     st.markdown(f"## 📂 Case ID | `{case_id}`")
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     col1.metric("▶ Timeline Events", timeline_summary.get("total_events", 0))
     col2.metric("▶ Evidence Items", len(evidence))
     col3.metric("▶ IOC Candidates", ioc_summary.get("total", 0))
     col4.metric("▶ Host", metadata.get("host", "-"))
+    col5.metric("▶ Case Risk", f"{risk['score']}/100", risk["level"])
 
 
     status_title_col, regen_button_col = st.columns([7, 2])
@@ -221,7 +344,7 @@ def render_home():
 
     st.subheader("Case 정보")
 
-    info_col1, info_col2 = st.columns(2)
+    info_col1, info_col2, info_col3 = st.columns(3)
 
     with info_col1:
         st.markdown("#### Collection")
@@ -236,6 +359,31 @@ def render_home():
         st.write(f"**Last Seen:** {timeline_summary.get('last_seen', '-')}")
         st.write(f"**Sources:** {timeline_summary.get('by_source', {})}")
         st.write(f"**Severity:** {timeline_summary.get('by_severity', {})}")
+    
+    with info_col3:
+        st.markdown("#### Risk Score")
+        st.metric("Case Risk Score", f"{risk['score']}/100", risk["level"])
+
+        st.progress(risk["score"] / 100)
+
+        st.write(f"**Interpretation:** {risk['interpretation']}")
+        st.write(f"**Evidence Score:** {risk['evidence_score']}")
+        st.write(f"**IOC Score:** {risk['ioc_score']}")
+        st.write(f"**Stage Bonus:** {risk['stage_bonus']}")
+
+        with st.expander("Risk Score Breakdown"):
+            st.write("**Evidence Severity Count**")
+            st.json(risk["evidence_breakdown"])
+
+            st.write("**IOC Severity Count**")
+            st.json(risk["ioc_breakdown"])
+
+            st.write("**Stage Reasons**")
+            if risk["stage_reasons"]:
+                for reason in risk["stage_reasons"]:
+                    st.write(f"- {reason}")
+            else:
+                st.write("- No stage bonus applied")
 
     st.divider()
 
