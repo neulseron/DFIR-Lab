@@ -42,8 +42,6 @@ def write_csv(rows: List[Dict[str, Any]], path: Path) -> None:
         "evidence_type",
         "summary",
         "ioc_refs",
-        "mitre_tactic",
-        "mitre_technique",
         "forensic_meaning",
     ]
 
@@ -318,8 +316,6 @@ def build_timeline_rows(
             "summary": short_text(ev.get("summary"), 280),
             "ioc_refs": ", ".join(ioc_refs),
             "ioc_details": ioc_index.get(evidence_id, {}).get("details", []),
-            "mitre_tactic": ev.get("mitre_tactic"),
-            "mitre_technique": ev.get("mitre_technique"),
             "forensic_meaning": ev.get("forensic_meaning"),
             "raw": {
                 "user": ev.get("user"),

@@ -1038,8 +1038,6 @@ def render_home():
                 "count": item.get("count"),
                 "first_seen": item.get("first_seen"),
                 "last_seen": item.get("last_seen"),
-                "high_count": high_count,
-                "medium_count": medium_count,
                 "representative_actions": "; ".join(item.get("representative_actions", [])),
             })
 
@@ -1051,12 +1049,9 @@ def render_home():
                 "count",
                 "first_seen",
                 "last_seen",
-                "high_count",
-                "medium_count",
                 "representative_actions",
             ],
             badge_columns={"severity"},
-            right_columns={"count", "high_count", "medium_count"},
             column_renderers={
                 "stage": stage_label,
             },
@@ -1066,8 +1061,6 @@ def render_home():
                 "count": "70px",
                 "first_seen": "170px",
                 "last_seen": "170px",
-                "high_count": "80px",
-                "medium_count": "95px",
                 "representative_actions": "360px",
             },
         )

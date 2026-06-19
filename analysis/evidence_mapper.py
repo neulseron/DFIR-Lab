@@ -336,8 +336,6 @@ def build_evidence_item(
         "evidence_type": rule.get("evidence_type"),
         "attack_stage": rule.get("attack_stage"),
         "severity": rule.get("severity"),
-        "mitre_tactic": rule.get("mitre_tactic"),
-        "mitre_technique": rule.get("mitre_technique"),
         "forensic_meaning": rule.get("forensic_meaning"),
         "summary": summary,
         "matched_reason": matched_reason,

@@ -101,7 +101,6 @@ def render_evidence():
 
         st.markdown(f"### {row.get('title', '-')}")
         st.write(f"**Forensic Meaning:** {row.get('forensic_meaning', '-')}")
-        st.write(f"**MITRE:** {row.get('mitre_tactic', '-')} / {row.get('mitre_technique', '-')}")
         st.write(f"**Summary:** {row.get('summary', '-')}")
 
         st.markdown("#### Rule Match Explanation")

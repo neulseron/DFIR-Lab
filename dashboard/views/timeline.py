@@ -84,8 +84,6 @@ def render_timeline():
             "event_id": "80px",
             "evidence_id": "105px",
             "ioc_refs": "260px",
-            "mitre_tactic": "150px",
-            "mitre_technique": "140px",
         },
     )
 
