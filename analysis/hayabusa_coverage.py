@@ -23,8 +23,13 @@ def write_json(data: Any, path: Path) -> None:
 
 def build_coverage(correlation_data: Dict[str, Any], hayabusa_data: Dict[str, Any]) -> Dict[str, Any]:
     matches = correlation_data.get("matches", [])
-    timeline_rows = correlation_data.get("timeline", [])
     findings = hayabusa_data.get("findings", [])
+
+    timeline_rows = correlation_data.get("timeline", [])
+    timeline_rows = [
+        row for row in timeline_rows
+        if row.get("severity") != "Informational"
+    ]
 
     matched_hayabusa_ids = set()
     matched_evidence_ids = set()
@@ -48,8 +53,19 @@ def build_coverage(correlation_data: Dict[str, Any], hayabusa_data: Dict[str, An
                 "timestamp": row.get("timestamp"),
                 "severity": row.get("severity"),
                 "stage": row.get("stage"),
-                "action": row.get("action"),
-                "hayabusa_match_count": len(hayabusa_matches),
+
+                # 내부 기준
+                "internal_type": row.get("evidence_type") or row.get("stage"),
+                "internal_rule": row.get("title") or row.get("rule_id"),
+
+                # Hayabusa 기준
+                "hayabusa_rule_types": "; ".join(
+                    sorted({
+                        str(m.get("hayabusa_behavior"))
+                        for m in hayabusa_matches
+                        if m.get("hayabusa_behavior")
+                    })
+                ),
                 "hayabusa_rules": "; ".join(
                     sorted({
                         str(m.get("rule_title"))

@@ -1,8 +1,18 @@
 # dashboard/views/hayabusa.py
+# .\data\raw\CASE-001\hayabusa_tool\hayabusa.exe csv-timeline -d .\data\raw\CASE-001\evtx -o .\data\raw\CASE-001\hayabusa\hayabusa.csv -p standard -w
 
 import streamlit as st
 
-from components import render_badge_table, stage_label, spacer, dashed_divider, soft_divider
+from components import (
+    render_badge_table,
+    stage_label,
+    evidence_type_label,
+    hayabusa_rule_type_label,
+    hayabusa_rule_title_label,
+    spacer,
+    dashed_divider,
+    soft_divider,
+)
 from .common import (
     get_case_id,
     get_raw_dir,
@@ -99,24 +109,35 @@ def render_hayabusa():
             render_badge_table(
                 rows=coverage.get("both", [])[:100],
                 columns=[
+                    "stage",
                     "evidence_id",
                     "timestamp",
                     "severity",
-                    "stage",
-                    "action",
-                    "hayabusa_match_count",
+
+                    "internal_type",
+                    "internal_rule",
+
+                    "hayabusa_rule_types",
                     "hayabusa_rules",
                 ],
                 badge_columns={"severity"},
-                right_columns={"hayabusa_match_count"},
+                column_renderers={
+                    "stage": stage_label,
+                    "internal_type": evidence_type_label,
+                    "hayabusa_rule_types": hayabusa_rule_type_label,
+                    "hayabusa_rules": hayabusa_rule_title_label,
+                },
                 column_widths={
+                    "stage": "150px",
                     "evidence_id": "105px",
                     "timestamp": "180px",
                     "severity": "95px",
-                    "stage": "150px",
-                    "action": "320px",
-                    "hayabusa_match_count": "90px",
-                    "hayabusa_rules": "360px",
+
+                    "internal_type": "170px",
+                    "internal_rule": "220px",
+
+                    "hayabusa_rule_types": "190px",
+                    "hayabusa_rules": "420px",
                 },
             )
 

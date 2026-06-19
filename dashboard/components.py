@@ -87,6 +87,18 @@ STAGE_STYLE = {
     "Unknown": ("❔", "미분류", "#6b7280"),
 }
 
+HAYABUSA_RULE_STYLE = {
+    "powershell": ("⚡", "PowerShell", "#7c3aed"),
+    "process_execution": ("⚙️", "프로세스 실행", "#4b5563"),
+    "credential_access": ("🔐", "자격 증명", "#be123c"),
+    "network": ("🌐", "네트워크", "#0f766e"),
+    "file_activity": ("📄", "파일 활동", "#2563eb"),
+    "defense_evasion": ("🛡️", "방어 회피", "#b45309"),
+    "discovery": ("🔎", "탐색", "#0891b2"),
+    "logon": ("👤", "로그온", "#0369a1"),
+    "unknown": ("❔", "미분류", "#6b7280"),
+}
+
 
 def type_label(value: str, style_map: dict) -> str:
     raw = str(value or "-")
@@ -116,6 +128,92 @@ def evidence_type_label(value: str) -> str:
 
 def stage_label(value: str) -> str:
     return type_label(value, STAGE_STYLE)
+
+def hayabusa_rule_type_label(value: str) -> str:
+    values = [
+        v.strip()
+        for v in str(value or "").split(";")
+        if v.strip()
+    ]
+
+    if not values:
+        values = ["unknown"]
+
+    badges = []
+
+    for item in values:
+        raw = item
+        icon, label, color = HAYABUSA_RULE_STYLE.get(raw, ("•", raw, "#374151"))
+
+        badges.append(
+            f'<span style="'
+            f'display:inline-flex; align-items:center; gap:5px; '
+            f'border:1px solid #e5e7eb; '
+            f'border-left:4px solid {color}; '
+            f'border-radius:999px; '
+            f'padding:3px 8px; '
+            f'margin:2px; '
+            f'font-weight:700; '
+            f'font-size:0.82rem; '
+            f'background:#ffffff; '
+            f'color:#374151; '
+            f'white-space:nowrap;'
+            f'">'
+            f'<span>{icon}</span>'
+            f'<span>{html.escape(label)}</span>'
+            f'</span>'
+        )
+
+    return "<div style='display:flex; flex-wrap:wrap; gap:4px;'>" + "".join(badges) + "</div>"
+
+
+def hayabusa_rule_title_label(value: str) -> str:
+    rules = [
+        v.strip()
+        for v in str(value or "").split(";")
+        if v.strip()
+    ]
+
+    if not rules:
+        return "-"
+
+    chips = []
+
+    for rule in rules[:6]:
+        chips.append(
+            f'<span style="'
+            f'display:inline-block; '
+            f'border:1px solid #d1d5db; '
+            f'border-radius:999px; '
+            f'padding:3px 8px; '
+            f'margin:2px; '
+            f'background:#f9fafb; '
+            f'color:#374151; '
+            f'font-weight:600; '
+            f'font-size:0.8rem; '
+            f'white-space:normal;'
+            f'">'
+            f'{html.escape(rule)}'
+            f'</span>'
+        )
+
+    if len(rules) > 6:
+        chips.append(
+            f'<span style="'
+            f'display:inline-block; '
+            f'border:1px solid #e5e7eb; '
+            f'border-radius:999px; '
+            f'padding:3px 8px; '
+            f'margin:2px; '
+            f'background:#ffffff; '
+            f'color:#6b7280; '
+            f'font-weight:700; '
+            f'font-size:0.8rem;'
+            f'">+{len(rules) - 6}</span>'
+        )
+
+    return "<div style='display:flex; flex-wrap:wrap; gap:4px;'>" + "".join(chips) + "</div>"
+
 
 
 # --------------------------------------------------
@@ -253,7 +351,18 @@ def render_badge_table(
             width_style = f"width:{width};" if width != "auto" else ""
 
             # 긴 텍스트 컬럼은 줄바꿈 허용
-            if col in {"summary", "action", "value", "ioc_refs", "related_evidence_ids", "title"}:
+            if col in {
+                "summary",
+                "action",
+                "value",
+                "ioc_refs",
+                "related_evidence_ids",
+                "title",
+                "hayabusa_rules",
+                "matched_behaviors",
+                "match_types",
+                "internal_rule",
+            }:
                 text_style = "white-space:normal; word-break:break-word;"
             else:
                 text_style = "white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
@@ -303,7 +412,7 @@ def render_menu():
         return option_menu(
             None,
             ["CASE 요약", "타임라인", "IOC", "증거", "리포트", "Hayabusa"],
-            icons=["house-door", "clock-history", "crosshair", "folder2-open", "file-earmark-text", "crosshair"],
+            icons=["house-door", "clock-history", "crosshair", "folder2-open", "file-earmark-text", "shield-check"],
             menu_icon=None,
             default_index=0,
             styles={

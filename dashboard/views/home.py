@@ -89,7 +89,7 @@ def run_hayabusa_pipeline(project_root: Path, raw_dir: Path, processed_dir: Path
                 "--timeline", str(timeline_path),
                 "--hayabusa", str(findings_path),
                 "--out", str(correlation_path),
-                "--window-seconds", "60",
+                "--window-seconds", "100",
             ]
         )
 
@@ -358,6 +358,68 @@ def regenerate_analysis_files(case_id: str, data_root: str):
     return "\n".join(logs)
 
 
+def regenerate_events_and_metadata(case_id: str, data_root: str):
+    """
+    raw CSV 로그를 다시 정규화하여
+    events.jsonl, events_preview.json, case_metadata.json을 생성한다.
+    """
+
+    project_root = Path(__file__).resolve().parents[2]
+
+    data_root_path = Path(data_root)
+    if not data_root_path.is_absolute():
+        data_root_path = (Path.cwd() / data_root_path).resolve()
+
+    raw_dir = data_root_path / "raw" / case_id
+    processed_dir = data_root_path / "processed" / case_id
+
+    normalize_script = project_root / "analysis" / "normalize_events.py"
+
+    if not raw_dir.exists():
+        raise FileNotFoundError(f"raw 디렉터리가 없습니다: {raw_dir}")
+
+    csv_files = list(raw_dir.glob("*.csv"))
+
+    if not csv_files:
+        raise FileNotFoundError(
+            f"raw 디렉터리에 CSV 로그가 없습니다: {raw_dir}\n"
+            "Security.csv, Sysmon.csv, PowerShell.csv 등의 원본 CSV를 먼저 넣어주세요."
+        )
+
+    cmd = [
+        sys.executable,
+        str(normalize_script),
+        "--case-id", case_id,
+        "--raw-dir", str(raw_dir),
+        "--out-dir", str(processed_dir),
+    ]
+
+    result = subprocess.run(
+        cmd,
+        cwd=str(project_root),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+    logs = []
+    logs.append("\n===== normalize_events.py =====")
+
+    if result.stdout:
+        logs.append(result.stdout)
+
+    if result.stderr:
+        logs.append(result.stderr)
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            "normalize_events.py 실행 실패\n\n" + "\n".join(logs)
+        )
+
+    return "\n".join(logs)
+
+
 # --------------------------------------------------
 # 상단 요약카드 
 # --------------------------------------------------
@@ -433,6 +495,126 @@ def render_metric_card(title: str, value, delta: str = None, icon: str = "▶"):
         unsafe_allow_html=True,
     )
 
+# --------------------------------------------------
+# CASE 요약
+# --------------------------------------------------
+
+def render_info_item(label: str, value, icon: str = "•"):
+    value = value if value not in [None, ""] else "-"
+
+    st.markdown(
+        f"""
+        <div style="
+            display:flex;
+            justify-content:space-between;
+            align-items:flex-start;
+            gap:12px;
+            padding:8px 10px;
+            margin-bottom:6px;
+            border:1px solid #e5e7eb;
+            border-radius:8px;
+            background-color:#f9fafb;
+        ">
+            <span style="
+                font-weight:700;
+                color:#374151;
+                white-space:nowrap;
+                font-size:0.86rem;
+            ">{icon} {label}</span>
+            <span style="
+                color:#111827;
+                font-weight:600;
+                text-align:right;
+                word-break:break-word;
+                font-size:0.86rem;
+            ">{value}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_metadata_status(metadata_path: Path):
+    exists = metadata_path.exists()
+
+    if exists:
+        st.markdown(
+            """
+            <div style="
+                display:inline-flex;
+                align-items:center;
+                gap:6px;
+                padding:4px 9px;
+                border-radius:999px;
+                background-color:#dcfce7;
+                color:#166534;
+                font-weight:800;
+                font-size:0.78rem;
+                margin-bottom:8px;
+            ">
+                🟢 metadata loaded
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.caption("case_metadata.json 파일이 아직 생성되지 않았습니다.")
+
+
+def render_compact_count_list(title: str, data: dict, label_map: dict = None):
+    label_map = label_map or {}
+
+    st.markdown(f"**{title}**")
+
+    if not data:
+        st.caption("데이터 없음")
+        return
+
+    sorted_items = sorted(
+        data.items(),
+        key=lambda x: x[1],
+        reverse=True,
+    )
+
+    for key, count in sorted_items:
+        label = label_map.get(key, key)
+
+        st.markdown(
+            f"""
+            <div style="
+                display:flex;
+                justify-content:space-between;
+                align-items:center;
+                padding:6px 10px;
+                margin-bottom:5px;
+                border:1px solid #e5e7eb;
+                border-radius:8px;
+                background-color:#f9fafb;
+            ">
+                <span style="
+                    font-weight:700;
+                    color:#374151;
+                    font-size:0.86rem;
+                    overflow:hidden;
+                    text-overflow:ellipsis;
+                    white-space:nowrap;
+                ">{label}</span>
+                <span style="
+                    font-weight:800;
+                    color:#111827;
+                    background-color:#ffffff;
+                    border:1px solid #e5e7eb;
+                    border-radius:999px;
+                    padding:2px 8px;
+                    min-width:32px;
+                    text-align:center;
+                    font-size:0.8rem;
+                ">{count}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
 
 # --------------------------------------------------
 # 홈 렌더링 
@@ -450,7 +632,6 @@ def render_home():
     iocs = load_json(processed_dir / "iocs.json", default={})
     evidence = load_json(processed_dir / "evidence.json", default=[])
     hayabusa_summary = load_json(get_hayabusa_summary_path(), default={})
-    hayabusa_findings = load_json(get_hayabusa_findings_path(), default={})
 
     if not timeline:
         show_missing_file_warning("timeline.json")
@@ -466,16 +647,29 @@ def render_home():
 
     st.markdown(f"## 📂 Case ID | `{case_id}`")
 
-    status_title_col, regen_button_col = st.columns([7, 2])
+    status_title_col, normalize_button_col, regen_button_col = st.columns([5, 2, 2])
 
     with status_title_col:
         st.markdown("### ▶ Data Status")
+
+    with normalize_button_col:
+        normalize_clicked = st.button(
+            "이벤트 정규화",
+            use_container_width=True,
+            help=(
+                "raw CSV 로그를 다시 읽어 events.jsonl, events_preview.json, "
+                "case_metadata.json을 생성합니다."
+            ),
+        )
 
     with regen_button_col:
         regenerate_clicked = st.button(
             "분석 파일 재생성",
             use_container_width=True,
-            help="events.jsonl은 유지하고 evidence, iocs, timeline, report 파일만 다시 생성합니다.",
+            help=(
+                "기존 events.jsonl을 기준으로 evidence, iocs, timeline, report를 다시 생성하고, "
+                "Hayabusa CSV가 있으면 Hayabusa findings, summary, timeline matches, coverage도 함께 생성합니다."
+            ),
         )
 
     if regenerate_clicked:
@@ -496,6 +690,26 @@ def render_home():
         except Exception as e:
             st.error("분석 파일 재생성 중 오류가 발생했습니다.")
             st.code(str(e), language="text")
+
+    if normalize_clicked:
+        try:
+            with st.spinner("이벤트 로그를 정규화하는 중입니다..."):
+                logs = regenerate_events_and_metadata(
+                    case_id=st.session_state.case_id,
+                    data_root=st.session_state.data_root,
+                )
+
+            st.success("events.jsonl 및 case_metadata.json 생성이 완료되었습니다.")
+
+            with st.expander("실행 로그 보기", expanded=False):
+                st.code(logs, language="text")
+
+            st.rerun()
+
+        except Exception as e:
+            st.error("이벤트 정규화 중 오류가 발생했습니다.")
+            st.code(str(e), language="text")
+            
 
     processed_dir = Path(st.session_state.data_root) / "processed" / st.session_state.case_id
     raw_dir = Path(st.session_state.data_root) / "raw" / st.session_state.case_id
@@ -526,30 +740,49 @@ def render_home():
             "exists": (processed_dir / "report.md").exists(),
             "path": "processed/report.md",
         },
+    ]
+
+    hayabusa_status_items = [
         {
-            "name": "metadata",
-            "exists": (raw_dir / "case_metadata.json").exists(),
-            "path": "raw/case_metadata.json",
+            "name": "hayabusa.csv",
+            "exists": (raw_dir / "hayabusa" / "hayabusa.csv").exists(),
+            "path": get_raw_hayabusa_csv_path(),
+        },
+        {
+            "name": "findings",
+            "exists": (processed_dir / "hayabusa" / "hayabusa_findings.json").exists(),
+            "path": get_hayabusa_findings_path(),
+        },
+        {
+            "name": "summary",
+            "exists": (processed_dir / "hayabusa" / "hayabusa_summary.json").exists(),
+            "path": get_hayabusa_summary_path(),
+        },
+        {
+            "name": "coverage",
+            "exists": (processed_dir / "hayabusa" / "hayabusa_coverage.json").exists(),
+            "path": get_hayabusa_coverage_path(),
         },
     ]
 
-    status_col1, status_col2, status_col3, status_col4, status_col5, status_col6 = st.columns(6)
+    status_cols = st.columns(5)
 
-    with status_col1:
-        render_status(status_items[0])
-    with status_col2:
-        render_status(status_items[1])
-    with status_col3:
-        render_status(status_items[2])
-    with status_col4:
-        render_status(status_items[3])
-    with status_col5:
-        render_status(status_items[4])
-    with status_col6:
-        render_status(status_items[5])
+    for col, item in zip(status_cols, status_items):
+        with col:
+            render_status(item)
+
+    st.caption("Hayabusa Files")
+
+    hayabusa_cols = st.columns(4)
+
+    for col, item in zip(hayabusa_cols, hayabusa_status_items):
+        with col:
+            render_status(item)
+
 
     spacer(20)
     dashed_divider()
+
 
     st.subheader("▶ Summary")
 
@@ -577,18 +810,76 @@ def render_home():
     info_col1, info_col2, info_col3 = st.columns(3)
 
     with info_col1:
-        st.markdown("#### Collection")
-        st.write(f"**User:** {metadata.get('user', '-')}")
-        st.write(f"**Export Time:** {metadata.get('export_time', '-')}")
-        st.write(f"**Start Time:** {metadata.get('start_time', timeline_summary.get('first_seen', '-'))}")
-        st.write(f"**End Time:** {metadata.get('end_time', timeline_summary.get('last_seen', '-'))}")
+        st.markdown("#### 수집 정보")
+
+        metadata_path = raw_dir / "case_metadata.json"
+        render_metadata_status(metadata_path)
+
+        render_info_item(
+            "User",
+            metadata.get("user", "-"),
+            icon="👤",
+        )
+
+        render_info_item(
+            "Export Time",
+            metadata.get("export_time", "-"),
+            icon="📤",
+        )
+
+        render_info_item(
+            "Log Start",
+            metadata.get("start_time", timeline_summary.get("first_seen", "-")),
+            icon="🕒",
+        )
+
+        render_info_item(
+            "Log End",
+            metadata.get("end_time", timeline_summary.get("last_seen", "-")),
+            icon="🕘",
+        )
+
+        exported_logs = metadata.get("exported_logs", [])
+
+        if exported_logs:
+            render_info_item(
+                "Logs",
+                ", ".join(exported_logs),
+                icon="📁",
+            )
 
     with info_col2:
         st.markdown("#### Summary")
-        st.write(f"**First Seen:** {timeline_summary.get('first_seen', '-')}")
-        st.write(f"**Last Seen:** {timeline_summary.get('last_seen', '-')}")
-        st.write(f"**Sources:** {timeline_summary.get('by_source', {})}")
-        st.write(f"**Severity:** {timeline_summary.get('by_severity', {})}")
+
+        render_metric_card(
+            "First Seen",
+            timeline_summary.get("first_seen", "-"),
+            icon="🕒",
+        )
+
+        spacer(10)
+
+        render_metric_card(
+            "Last Seen",
+            timeline_summary.get("last_seen", "-"),
+            icon="🕘",
+        )
+
+        spacer(14)
+
+        summary_left, summary_right = st.columns(2)
+
+        with summary_left:
+            render_compact_count_list(
+                "By Source",
+                timeline_summary.get("by_source", {}),
+            )
+
+        with summary_right:
+            render_compact_count_list(
+                "By Severity",
+                timeline_summary.get("by_severity", {}),
+            )
     
     with info_col3:
         st.markdown("#### Risk Score")

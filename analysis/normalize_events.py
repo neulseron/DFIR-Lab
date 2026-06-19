@@ -237,6 +237,56 @@ def write_preview_json(events: List[Dict[str, Any]], output_path: Path, limit: i
     print(f"[+] Wrote preview to {output_path}")
 
 
+def write_case_metadata(events: List[Dict[str, Any]], raw_dir: Path, output_path: Path, case_id: str) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    timestamps = [
+        event.get("timestamp")
+        for event in events
+        if event.get("timestamp")
+    ]
+
+    hosts = sorted({
+        event.get("host")
+        for event in events
+        if event.get("host")
+    })
+
+    users = sorted({
+        event.get("user")
+        for event in events
+        if event.get("user")
+    })
+
+    sources = sorted({
+        event.get("source")
+        for event in events
+        if event.get("source")
+    })
+
+    exported_logs = sorted([
+        path.name
+        for path in raw_dir.glob("*.csv")
+    ])
+
+    metadata = {
+        "case_id": case_id,
+        "host": hosts[0] if hosts else "-",
+        "user": users[0] if users else "-",
+        "export_time": None,
+        "start_time": min(timestamps) if timestamps else None,
+        "end_time": max(timestamps) if timestamps else None,
+        "sources": sources,
+        "exported_logs": exported_logs,
+        "event_count": len(events),
+    }
+
+    with output_path.open("w", encoding="utf-8") as f:
+        json.dump(metadata, f, ensure_ascii=False, indent=2)
+
+    print(f"[+] Wrote metadata to {output_path}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Normalize Windows CSV event logs into DFIR events.jsonl"
@@ -255,6 +305,7 @@ def main():
 
     write_jsonl(events, out_dir / "events.jsonl")
     write_preview_json(events, out_dir / "events_preview.json")
+    write_case_metadata(events, raw_dir, raw_dir / "case_metadata.json", case_id)
 
 
 if __name__ == "__main__":
