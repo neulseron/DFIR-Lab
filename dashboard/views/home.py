@@ -250,7 +250,7 @@ def calculate_case_risk(evidence_items: list, iocs_data: dict, timeline_data: di
 def regenerate_analysis_files(case_id: str, data_root: str):
     """
     events.jsonl은 그대로 두고,
-    evidence / iocs / timeline / report 파일만 재생성한다.
+    evidence / iocs / timeline 파일만 재생성한다.
     """
 
     # home.py 위치: dashboard/views/home.py
@@ -269,15 +269,17 @@ def regenerate_analysis_files(case_id: str, data_root: str):
     iocs_path = processed_dir / "iocs.json"
     timeline_json_path = processed_dir / "timeline.json"
     timeline_csv_path = processed_dir / "timeline.csv"
-    report_path = processed_dir / "report.md"
-    metadata_path = raw_dir / "case_metadata.json"
 
     rules_path = project_root / "rules" / "evidence_rules.yaml"
 
     evidence_script = project_root / "analysis" / "evidence_mapper.py"
     ioc_script = project_root / "analysis" / "ioc_extractor.py"
     timeline_script = project_root / "analysis" / "timeline_builder.py"
-    report_script = project_root / "analysis" / "report_generator.py"
+
+    case_summary_path = processed_dir / "case_summary.json"
+    case_summary_script = project_root / "analysis" / "case_summary_generator.py"
+    hayabusa_coverage_path = processed_dir / "hayabusa" / "hayabusa_coverage.json"
+
 
     if not events_path.exists():
         raise FileNotFoundError(
@@ -310,16 +312,6 @@ def regenerate_analysis_files(case_id: str, data_root: str):
             "--iocs", str(iocs_path),
             "--out-json", str(timeline_json_path),
             "--out-csv", str(timeline_csv_path),
-        ],
-        [
-            sys.executable,
-            str(report_script),
-            "--case-id", case_id,
-            "--metadata", str(metadata_path),
-            "--timeline", str(timeline_json_path),
-            "--evidence", str(evidence_path),
-            "--iocs", str(iocs_path),
-            "--out", str(report_path),
         ],
     ]
 
@@ -354,6 +346,43 @@ def regenerate_analysis_files(case_id: str, data_root: str):
         processed_dir=processed_dir,
         logs=logs,
     )
+
+    summary_cmd = [
+        sys.executable,
+        str(case_summary_script),
+        "--case-id", case_id,
+        "--timeline", str(timeline_json_path),
+        "--evidence", str(evidence_path),
+        "--iocs", str(iocs_path),
+        "--out", str(case_summary_path),
+    ]
+
+    if hayabusa_coverage_path.exists():
+        summary_cmd.extend([
+            "--hayabusa-coverage", str(hayabusa_coverage_path),
+        ])
+
+    result = subprocess.run(
+        summary_cmd,
+        cwd=str(project_root),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+    logs.append("\n===== case_summary_generator.py =====")
+
+    if result.stdout:
+        logs.append(result.stdout)
+
+    if result.stderr:
+        logs.append(result.stderr)
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            "case_summary_generator.py 실행 실패\n\n" + "\n".join(logs)
+        )
 
     return "\n".join(logs)
 
@@ -616,6 +645,89 @@ def render_compact_count_list(title: str, data: dict, label_map: dict = None):
         )
 
 
+def render_case_ai_summary(summary_data: dict):
+    st.subheader("🧠 케이스 흐름 요약")
+
+    if not summary_data:
+        st.info("case_summary.json 파일이 없습니다. 분석 파일 재생성을 실행해 주세요.")
+        return
+
+    if summary_data.get("llm_error"):
+        st.caption(
+            "LLM 호출에 실패하여 기본 규칙 기반 요약을 표시합니다. "
+            f"Error: {summary_data.get('llm_error')}"
+        )
+
+    st.markdown(
+        f"""
+        <div style="
+            border:1px solid #e5e7eb;
+            border-radius:12px;
+            padding:16px 18px;
+            background-color:#ffffff;
+            margin-bottom:14px;
+        ">
+            <div style="
+                font-weight:900;
+                color:#111827;
+                font-size:1.05rem;
+                margin-bottom:8px;
+            ">침해 흐름 요약</div>
+            <div style="
+                color:#374151;
+                line-height:1.65;
+                font-size:0.95rem;
+            ">{summary_data.get("summary", "-")}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### 관찰된 흐름")
+        flow = summary_data.get("flow", [])
+        if flow:
+            for item in flow:
+                st.markdown(f"- {item}")
+        else:
+            st.caption("흐름 요약이 없습니다.")
+
+    with col2:
+        st.markdown("#### 주의 깊게 볼 포인트")
+        watch_points = summary_data.get("watch_points", [])
+        if watch_points:
+            for item in watch_points:
+                st.markdown(f"- {item}")
+        else:
+            st.caption("주의 포인트가 없습니다.")
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        st.markdown("#### 우선 확인 Evidence")
+        priority = summary_data.get("priority_evidence", [])
+        if priority:
+            st.write(", ".join(priority))
+        else:
+            st.caption("우선 Evidence 정보가 없습니다.")
+
+    with col4:
+        st.markdown("#### 분석 한계")
+        limitations = summary_data.get("limitations", [])
+        if limitations:
+            for item in limitations:
+                st.markdown(f"- {item}")
+        else:
+            st.caption("분석 한계 정보가 없습니다.")
+
+    st.caption(
+        f"Generated At: {summary_data.get('generated_at', '-')} | "
+        f"Model: {summary_data.get('model', '-')}"
+    )
+
+
 # --------------------------------------------------
 # 홈 렌더링 
 # --------------------------------------------------
@@ -667,7 +779,7 @@ def render_home():
             "분석 파일 재생성",
             use_container_width=True,
             help=(
-                "기존 events.jsonl을 기준으로 evidence, iocs, timeline, report를 다시 생성하고, "
+                "기존 events.jsonl을 기준으로 evidence, iocs, timeline을 다시 생성하고, "
                 "Hayabusa CSV가 있으면 Hayabusa findings, summary, timeline matches, coverage도 함께 생성합니다."
             ),
         )
@@ -735,11 +847,6 @@ def render_home():
             "exists": (processed_dir / "timeline.json").exists(),
             "path": "processed/timeline.json",
         },
-        {
-            "name": "report",
-            "exists": (processed_dir / "report.md").exists(),
-            "path": "processed/report.md",
-        },
     ]
 
     hayabusa_status_items = [
@@ -765,7 +872,7 @@ def render_home():
         },
     ]
 
-    status_cols = st.columns(5)
+    status_cols = st.columns(4)
 
     for col, item in zip(status_cols, status_items):
         with col:
@@ -966,6 +1073,11 @@ def render_home():
         )
     else:
         st.info("Stage summary가 없습니다.")
+
+    spacer(20)
+
+    case_summary = load_json(processed_dir / "case_summary.json", default={})
+    render_case_ai_summary(case_summary)
 
 
 

@@ -8,7 +8,6 @@ from views.home import render_home
 from views.timeline import render_timeline
 from views.ioc import render_ioc
 from views.evidence import render_evidence
-from views.report import render_report
 from views.hayabusa import render_hayabusa
 
 st.set_page_config(
@@ -52,8 +51,6 @@ elif menu == "IOC":
     render_ioc()
 elif menu == "증거":
     render_evidence()
-elif menu == "리포트":
-    render_report()
 elif menu == "Hayabusa":
     render_hayabusa()
 else:
